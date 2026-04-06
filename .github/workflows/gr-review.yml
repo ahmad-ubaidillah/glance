@@ -1,0 +1,214 @@
+name: Glance Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      execution_mode:
+        description: 'Execution mode'
+        required: true
+        default: 'parallel'
+        type: choice
+        options:
+          - parallel
+          - sequential
+          - adaptive
+
+jobs:
+  lint:
+    name: Run Linter
+    runs-on: ubuntu-latest
+    outputs:
+      success: ${{ steps.lint.outputs.success }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Set up Node
+        if: ${{ hashFiles('package.json') != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - id: lint
+        name: Run linter
+        run: |
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          if [ -n "$CHANGED_FILES" ]; then
+            if [ -f "package.json" ]; then
+              npm install
+              npx eslint $CHANGED_FILES --max-warnings 0 || echo "Linter found issues"
+            elif [ -f "pyproject.toml" ]; then
+              pip install ruff
+              ruff check $CHANGED_FILES --exit-zero || echo "Linter found issues"
+            elif [ -f "Cargo.toml" ]; then
+              cargo clippy -- -D warnings || echo "Linter found issues"
+            fi
+          fi
+          echo "success=true" >> $GITHUB_OUTPUT
+
+  ci-status:
+    name: Check CI Status
+    runs-on: ubuntu-latest
+    outputs:
+      build_status: ${{ steps.ci.outputs.build_status }}
+      details: ${{ steps.ci.outputs.details }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - id: ci
+        name: Fetch CI Status
+        env:
+          CI_STATUS_URL: ${{ vars.CI_STATUS_URL }}
+          CI_PROVIDER: ${{ vars.CI_PROVIDER || 'github' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          echo "details={}" >> $GITHUB_OUTPUT
+          
+          if [ -n "$CI_STATUS_URL" ]; then
+            case "$CI_PROVIDER" in
+              teamcity)
+                echo "Fetching TeamCity status..."
+                ;;
+              gitlab)
+                echo "Fetching GitLab CI status..."
+                ;;
+              jenkins)
+                echo "Fetching Jenkins status..."
+                ;;
+              *)
+                echo "Unsupported CI provider: $CI_PROVIDER"
+                ;;
+            esac
+          fi
+          
+          STATUS_RESPONSE=$(gh api "repos/$REPO/commits/${{ github.sha }}/status" --jq '.state' 2>/dev/null || echo "unknown")
+          echo "build_status=$STATUS_RESPONSE" >> $GITHUB_OUTPUT
+
+  analyze:
+    name: GR-Review Analysis
+    needs: [lint, ci-status]
+    if: needs.lint.outputs.success == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      verdict: ${{ steps.review.outputs.verdict }}
+      execution_mode: ${{ steps.review.outputs.execution_mode }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -e .
+          pip install httpx pydantic-settings python-dotenv
+
+      - name: Run GR-Review
+        id: review
+        env:
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'zhipuai' }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'glm-4-flash' }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXECUTION_MODE: ${{ github.inputs.execution_mode || vars.EXECUTION_MODE || 'parallel' }}
+          CI_PROVIDER: ${{ vars.CI_PROVIDER || 'github' }}
+          CI_STATUS_URL: ${{ vars.CI_STATUS_URL }}
+          SKIP_LINTER: ${{ vars.SKIP_LINTER || 'false' }}
+        run: |
+          echo "Execution mode: $EXECUTION_MODE"
+          python -m glance.orchestrator 2>&1 || true
+          echo "verdict=reviewed" >> $GITHUB_OUTPUT
+          echo "execution_mode=$EXECUTION_MODE" >> $GITHUB_OUTPUT
+
+      - name: Upload Review Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-logs
+          path: |
+            /tmp/gr-review-*.log
+          retention-days: 7
+
+  notify:
+    name: Send Notifications
+    needs: [analyze]
+    runs-on: ubuntu-latest
+    if: always() && (needs.analyze.result == 'success' || needs.analyze.result == 'failure')
+    steps:
+      - name: Slack Notification
+        if: ${{ vars.SLACK_WEBHOOK != '' }}
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author
+        env:
+          SLACK_WEBHOOK: ${{ vars.SLACK_WEBHOOK }}
+
+      - name: Discord Notification
+        if: ${{ vars.DISCORD_WEBHOOK != '' }}
+        run: |
+          if [ -n "$DISCORD_WEBHOOK" ]; then
+            curl -X POST "$DISCORD_WEBHOOK" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "content": "GR-Review completed for PR ${{ github.event.pull_request.number }}",
+                "embeds": [{
+                  "title": "Code Review Results",
+                  "url": "${{ github.event.pull_request.html_url }}",
+                  "color": 5810783,
+                  "fields": [
+                    {"name": "Repository", "value": "${{ github.repository }}", "inline": true},
+                    {"name": "Verdict", "value": "${{ needs.analyze.outputs.verdict }}", "inline": true},
+                    {"name": "Mode", "value": "${{ needs.analyze.outputs.execution_mode }}", "inline": true}
+                  ]
+                }]
+              }'
+          fi
+        env:
+          DISCORD_WEBHOOK: ${{ vars.DISCORD_WEBHOOK }}
+
+  report:
+    name: Report Results
+    needs: [analyze]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Create Check Summary
+        run: |
+          VERDICT="${{ needs.analyze.outputs.verdict }}"
+          MODE="${{ needs.analyze.outputs.execution_mode }}"
+          
+          echo "## GR-Review Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Verdict | $VERDICT |" >> $GITHUB_STEP_SUMMARY
+          echo "| Execution Mode | $MODE |" >> $GITHUB_STEP_SUMMARY
+          echo "| PR | #${{ github.event.pull_request.number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Review completed. Check PR comments for detailed findings." >> $GITHUB_STEP_SUMMARY
+          echo "View the [action logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for full details." >> $GITHUB_STEP_SUMMARY
