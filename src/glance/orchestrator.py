@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sys
+from pathlib import Path
 from typing import Any
 
 from github import Github
@@ -27,6 +29,8 @@ from glance.auto_fix import AutoFixGenerator
 from glance.config import GlanceConfig, load_config
 from glance.integrations.ci_status import CIProviderType, create_ci_provider, format_ci_context
 from glance.integrations.signature_mapper import SignatureMapper, format_signature_map
+from glance.integrations.review_history import load_history, save_history, format_history_context
+from glance.integrations.test_coverage import get_coverage_for_files, format_coverage_context
 from glance.llm.client import LLMClientAdapter, create_llm_client
 from glance.routing import create_router
 from glance.scanners.secret_scanner import SecretScanner
@@ -211,9 +215,18 @@ class GRReviewOrchestrator:
                 f"LLM Config: provider={self.config.llm_provider.value if hasattr(self.config.llm_provider, 'value') else self.config.llm_provider}, model={self.config.llm_model}, base_url={self.config.llm_base_url}"
             )
 
+            # Step 8: Load review history and test coverage
+            import os
+
+            repo_root = Path(os.getcwd())
+            review_history = load_history(repo_root)
+            coverage_info = get_coverage_for_files(repo_root, pr_metadata.get("file_paths", []))
+
             # Prepare context for agents
             ci_context_str = format_ci_context(ci_context) if ci_context else ""
             signature_map_str = format_signature_map(repo_map) if repo_map else ""
+            history_context = ""
+            coverage_context = format_coverage_context(coverage_info)
 
             # Determine which agents to include based on routing decision
             from glance.routing import AgentType
@@ -233,6 +246,8 @@ class GRReviewOrchestrator:
                     repo_map,
                     ci_context,
                     ci_context_str,
+                    history_context,
+                    coverage_context,
                     run_architect=run_architect,
                     run_bug_hunter=run_bug_hunter,
                     run_white_hat=run_white_hat,
@@ -248,6 +263,8 @@ class GRReviewOrchestrator:
                     repo_map,
                     ci_context,
                     ci_context_str,
+                    history_context,
+                    coverage_context,
                     run_architect=run_architect,
                     run_bug_hunter=run_bug_hunter,
                     run_white_hat=run_white_hat,
@@ -280,6 +297,15 @@ class GRReviewOrchestrator:
             # Step 9: Post Final Verdict
             await self._post_verdict_comment(pr, final_review, pr_author)
 
+            # Step 10: Save Review History
+            try:
+                repo_root = Path(os.getcwd())
+                save_history(
+                    repo_root, review_history, final_review.findings, pr.number, pr.head.sha
+                )
+            except Exception as e:
+                logger.warning(f"Failed to save review history: {e}")
+
             logger.info("GR-Review completed successfully")
             return 0
 
@@ -293,24 +319,13 @@ class GRReviewOrchestrator:
         repo_map: Any,
         ci_context: Any,
         ci_context_str: str,
+        history_context: str,
+        coverage_context: str,
         run_architect: bool = True,
         run_bug_hunter: bool = True,
         run_white_hat: bool = True,
     ) -> tuple[AgentReview | None, AgentReview | None, AgentReview | None]:
-        """Run selected agents in parallel.
-
-        Args:
-            diff_content: Git diff content.
-            repo_map: Repository signature map.
-            ci_context: CI context object.
-            ci_context_str: Formatted CI context string.
-            run_architect: Whether to run architect agent.
-            run_bug_hunter: Whether to run bug hunter agent.
-            run_white_hat: Whether to run white hat agent.
-
-        Returns:
-            Tuple of (architect_review, bug_hunter_review, white_hat_review).
-        """
+        """Run selected agents in parallel."""
         # Build unified ci_context for architect
         architect_ci_context = ""
         if repo_map or ci_context:
@@ -325,6 +340,10 @@ class GRReviewOrchestrator:
                     if hasattr(ci_context, "build_state")
                     else "unknown"
                 }
+            if history_context:
+                context_data["review_history"] = history_context
+            if coverage_context:
+                context_data["test_coverage"] = coverage_context
             import json
 
             architect_ci_context = json.dumps(context_data)
@@ -384,24 +403,13 @@ class GRReviewOrchestrator:
         repo_map: Any,
         ci_context: Any,
         ci_context_str: str,
+        history_context: str,
+        coverage_context: str,
         run_architect: bool = True,
         run_bug_hunter: bool = True,
         run_white_hat: bool = True,
     ) -> tuple[AgentReview | None, AgentReview | None, AgentReview | None]:
-        """Run selected agents sequentially (one by one).
-
-        Args:
-            diff_content: Git diff content.
-            repo_map: Repository signature map.
-            ci_context: CI context object.
-            ci_context_str: Formatted CI context string.
-            run_architect: Whether to run architect agent.
-            run_bug_hunter: Whether to run bug hunter agent.
-            run_white_hat: Whether to run white hat agent.
-
-        Returns:
-            Tuple of (architect_review, bug_hunter_review, white_hat_review).
-        """
+        """Run selected agents sequentially (one by one)."""
         # Build unified ci_context for architect
         architect_ci_context = ""
         if repo_map or ci_context:
@@ -416,6 +424,10 @@ class GRReviewOrchestrator:
                     if hasattr(ci_context, "build_state")
                     else "unknown"
                 }
+            if history_context:
+                context_data["review_history"] = history_context
+            if coverage_context:
+                context_data["test_coverage"] = coverage_context
             import json
 
             architect_ci_context = json.dumps(context_data)
