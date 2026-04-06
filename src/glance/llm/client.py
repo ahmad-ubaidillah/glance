@@ -31,6 +31,7 @@ class LLMProvider(Enum):
     AZURE_OPENAI = "azure_openai"
     OLLAMA = "ollama"
     CUSTOM = "custom"  # For any OpenAI-compatible API
+    OPENROUTER = "openrouter"  # OpenRouter with auto-fallback for free models
 
 
 @dataclass
@@ -422,6 +423,151 @@ class GoogleClient(BaseLLMClient):
             self._client = None
 
 
+# Free models list for OpenRouter (updated as of 2025)
+OPENROUTER_FREE_MODELS = [
+    "google/gemma-2-2b-it-free",
+    "google/gemma-2-9b-it-free",
+    "meta-llama/llama-3.2-1b-instruct-free",
+    "meta-llama/llama-3.2-3b-instruct-free",
+    "microsoft/phi-3.5-mini-instruct-free",
+    "mistralai/mistral-7b-instruct-free",
+    "qwen/qwen-2-7b-instruct-free",
+]
+
+
+class OpenRouterClient(BaseLLMClient):
+    """OpenRouter client with auto-fallback for free models."""
+
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str = "https://openrouter.ai/api/v1",
+        model: str = "auto",
+        **kwargs: Any,
+    ):
+        self.api_key = api_key
+        self.base_url = base_url
+        self.model = model
+        self.current_model = model
+        self._client = httpx.AsyncClient(
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "HTTP-Referer": "https://github.com/ahmad-ubaidillah/glance",
+                "X-Title": "Glance AI Code Review",
+            },
+            timeout=120.0,
+        )
+        self.model_index = 0
+
+    async def chat(
+        self,
+        messages: list[dict],
+        model: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        **kwargs: Any,
+    ) -> LLMResponse:
+        """Send chat request with auto-fallback."""
+
+        if model and model != "auto":
+            return await self._make_request(messages, model, temperature, max_tokens, **kwargs)
+
+        # Auto mode: try free models in order
+        while self.model_index < len(OPENROUTER_FREE_MODELS):
+            try:
+                model_to_try = OPENROUTER_FREE_MODELS[self.model_index]
+                return await self._make_request(
+                    messages, model_to_try, temperature, max_tokens, **kwargs
+                )
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429:
+                    # Rate limit - try next model
+                    self.model_index += 1
+                    if self.model_index >= len(OPENROUTER_FREE_MODELS):
+                        raise ValueError("All free models exhausted. Please try again later.")
+                    continue
+                elif e.response.status_code == 402:
+                    # Payment required - try next model
+                    self.model_index += 1
+                    continue
+                else:
+                    raise
+            except Exception as e:
+                # Other error - try next model
+                self.model_index += 1
+                if self.model_index >= len(OPENROUTER_FREE_MODELS):
+                    raise
+                continue
+
+        raise ValueError("All free models failed")
+
+    async def _make_request(
+        self,
+        messages: list[dict],
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        **kwargs: Any,
+    ) -> LLMResponse:
+        """Make a single request to OpenRouter."""
+        url = f"{self.base_url}/chat/completions"
+
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            **kwargs,
+        }
+
+        response = await self._client.post(url, json=payload)
+        response.raise_for_status()
+
+        data = response.json()
+
+        content = data["choices"][0]["message"]["content"]
+        used_model = data.get("model", model)
+
+        usage = data.get("usage", {})
+
+        return LLMResponse(
+            content=content,
+            model=used_model,
+            provider=LLMProvider.OPENROUTER,
+            usage=usage,
+            raw_response=data,
+        )
+
+    async def chat_completion(
+        self,
+        messages: list[dict],
+        model: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        **kwargs: Any,
+    ) -> LLMResponse:
+        """Alias for chat method."""
+        return await self.chat(messages, model, temperature, max_tokens, **kwargs)
+
+    async def stream_chat(
+        self,
+        messages: list[dict],
+        model: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        **kwargs: Any,
+    ) -> AsyncGenerator[LLMResponse, None]:
+        """Streaming not fully implemented for OpenRouter."""
+        response = await self.chat(messages, model, temperature, max_tokens, **kwargs)
+        yield response
+
+    async def close(self) -> None:
+        """Close the HTTP client."""
+        if self._client:
+            await self._client.aclose()
+            self._client = None
+
+
 # Factory function
 def create_llm_client(
     provider: LLMProvider | str,
@@ -461,6 +607,7 @@ def create_llm_client(
             LLMProvider.AZURE_OPENAI: "AZURE_OPENAI_API_KEY",
             LLMProvider.OLLAMA: None,  # No API key for local
             LLMProvider.CUSTOM: "CUSTOM_API_KEY",
+            LLMProvider.OPENROUTER: "OPENROUTER_API_KEY",
         }
         env_key = env_keys.get(provider)
         if env_key:
@@ -512,6 +659,18 @@ def create_llm_client(
             raise ValueError("AZURE_OPENAI_ENDPOINT is required for Azure OpenAI")
         model = model or os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4")
         return OpenAIClient(
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+            **kwargs,
+        )
+
+    elif provider == LLMProvider.OPENROUTER:
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY is required for OpenRouter provider")
+        base_url = base_url or "https://openrouter.ai/api/v1"
+        model = model or "auto"
+        return OpenRouterClient(
             api_key=api_key,
             base_url=base_url,
             model=model,
