@@ -102,7 +102,7 @@ IMPORTANT RULES:
 
         try:
             response = await self.client.chat.completions.create(
-                model=self.config.zhipuai_model,
+                model=self.config.llm_model,
                 messages=[
                     {"role": "system", "content": self.system_prompt},
                     {"role": "user", "content": user_prompt},

@@ -542,6 +542,11 @@ class LLMClientAdapter:
         """Return self for chat.completions.create() compatibility."""
         return self
 
+    @property
+    def completions(self):
+        """Return self for completions.create() compatibility."""
+        return self
+
     async def chat_completions_create(
         self,
         model: str,

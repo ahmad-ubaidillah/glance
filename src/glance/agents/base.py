@@ -319,7 +319,7 @@ class BaseAgent(ABC):
             elif hasattr(self.client, "chat"):
                 # Custom client with chat method
                 response = await self.client.chat(
-                    model=self.config.zhipuai_model,
+                    model=self.config.llm_model,
                     messages=[
                         {"role": "system", "content": self.system_prompt},
                         {"role": "user", "content": user_prompt},
