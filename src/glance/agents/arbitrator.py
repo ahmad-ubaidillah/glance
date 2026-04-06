@@ -6,9 +6,12 @@ Takes findings from all agents and produces a consolidated, noise-reduced report
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from glance.agents.base import AgentReview, BaseAgent, Finding, GlanceConfig
+
+logger = logging.getLogger("glance.arbitrator")
 
 
 class ArbitratorAgent(BaseAgent):

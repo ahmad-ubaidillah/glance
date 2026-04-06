@@ -19,21 +19,8 @@ from typing import Any
 
 from github import Github
 
-from glance.agents.architect import Architect
-from glance.agents.arbitrator import ArbitratorAgent
-from glance.agents.bug_hunter import BugHunterAgent
-from glance.agents.white_hat import WhiteHatAgent
-from glance.config import GlanceConfig, load_config
-from glance.integrations.ci_status import (
-    CIProviderType,
-    create_ci_provider,
-    format_ci_context,
-)
-from glance.integrations.signature_mapper import (
-    SignatureMapper,
-    format_signature_map,
-)
-from glance.llm.client import create_llm_client
+from glance.auto_fix import AutoFixGenerator
+from glance.llm.client import LLMClientAdapter, create_llm_client
 from glance.scanners.secret_scanner import SecretScanner
 from glance.agents.base import AgentReview, Finding
 
@@ -57,14 +44,15 @@ class GRReviewOrchestrator:
         # Initialize GitHub client
         self.github_client = Github(config.github_token)
 
-        # Initialize LLM client using factory
+        # Initialize LLM client using factory and wrap with adapter
         llm_config = config.get_llm_config()
-        self.llm_client = create_llm_client(
+        raw_client = create_llm_client(
             provider=llm_config["provider"],
             api_key=llm_config["api_key"],
             model=llm_config["model"],
             base_url=llm_config["base_url"],
         )
+        self.llm_client = LLMClientAdapter(raw_client)
 
         # Initialize components
         self.secret_scanner = SecretScanner()
