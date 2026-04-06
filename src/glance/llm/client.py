@@ -539,19 +539,56 @@ class LLMClientAdapter:
 
     @property
     def chat(self):
-        """Return self for chat.completions.create() compatibility."""
+        """Return completions object for chat.completions.create() compatibility."""
         return self
 
     @property
     def completions(self):
-        """Return self for completions.create() compatibility."""
-        return self
+        """Return completions object for completions.create() compatibility."""
+        return CompletionsAdapter(self.client)
 
-    async def chat_completions_create(
+
+class CompletionsAdapter:
+    """Adapter for the completions.create() method."""
+
+    def __init__(self, client: BaseLLMClient) -> None:
+        self._client = client
+
+    async def create(
         self,
         model: str,
         messages: list[dict[str, str]],
         temperature: float = 0.3,
+        max_tokens: int = 4096,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Create chat completion (OpenAI-compatible interface)."""
+        response = await self._client.chat(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            **kwargs,
+        )
+
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": response.content,
+                        "role": "assistant",
+                    },
+                    "index": 0,
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": response.usage or {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+            },
+            "model": model,
+        }
         max_tokens: int = 4096,
         **kwargs: Any,
     ) -> dict[str, Any]:
