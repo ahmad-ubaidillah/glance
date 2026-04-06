@@ -189,7 +189,7 @@ class GRReviewOrchestrator:
             # Step 6: Run Agents (Parallel or Sequential)
             logger.info(f"Running agent reviews in {self.config.execution_mode} mode...")
             logger.info(
-                f"LLM Config: provider={self.config.llm_provider}, model={self.config.llm_model}, base_url={self.config.llm_base_url}"
+                f"LLM Config: provider={self.config.llm_provider.value if hasattr(self.config.llm_provider, 'value') else self.config.llm_provider}, model={self.config.llm_model}, base_url={self.config.llm_base_url}"
             )
 
             # Prepare context for agents

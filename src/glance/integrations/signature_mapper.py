@@ -343,7 +343,8 @@ class SignatureMapper:
 
         try:
             content = file_path.read_text(encoding="utf-8", errors="ignore")
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Could not read {file_path}: {e}")
             return []
 
         signatures: list[Signature] = []

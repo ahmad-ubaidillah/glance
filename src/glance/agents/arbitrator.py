@@ -116,7 +116,8 @@ IMPORTANT RULES:
 
             return self._parse_response(content)
 
-        except Exception:
+        except Exception as e:
+            logger.error(f"Arbitrator: Error in arbitrate: {e}")
             # Fallback to rule-based consolidation if LLM fails
             return self._fallback_consolidation(
                 architect_review, bug_hunter_review, white_hat_review
