@@ -25,8 +25,8 @@ from glance.agents.bug_hunter import BugHunterAgent
 from glance.agents.white_hat import WhiteHatAgent
 from glance.auto_fix import AutoFixGenerator
 from glance.config import GlanceConfig, load_config
-from glance.integrations.ci_status import CIProviderType, create_ci_provider
-from glance.integrations.signature_mapper import SignatureMapper
+from glance.integrations.ci_status import CIProviderType, create_ci_provider, format_ci_context
+from glance.integrations.signature_mapper import SignatureMapper, format_signature_map
 from glance.llm.client import LLMClientAdapter, create_llm_client
 from glance.scanners.secret_scanner import SecretScanner
 from glance.agents.base import AgentReview, Finding
