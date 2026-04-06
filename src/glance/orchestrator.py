@@ -28,6 +28,7 @@ from glance.config import GlanceConfig, load_config
 from glance.integrations.ci_status import CIProviderType, create_ci_provider, format_ci_context
 from glance.integrations.signature_mapper import SignatureMapper, format_signature_map
 from glance.llm.client import LLMClientAdapter, create_llm_client
+from glance.routing import create_router
 from glance.scanners.secret_scanner import SecretScanner
 from glance.agents.base import AgentReview, Finding
 
@@ -181,8 +182,22 @@ class GRReviewOrchestrator:
             except Exception as e:
                 logger.warning(f"Failed to generate repo map: {e}")
 
-            # Step 6: Run Agents (Parallel or Sequential)
-            logger.info(f"Running agent reviews in {self.config.execution_mode} mode...")
+            # Step 6: Adaptive Routing - determine which agents to run
+            pr_metadata = self._extract_pr_metadata(pr, diff_content)
+            router = create_router(
+                mode=self.config.routing_mode.value
+                if hasattr(self.config.routing_mode, "value")
+                else self.config.routing_mode,
+                always_architect=True,
+            )
+            routing_decision = router.route(**pr_metadata)
+
+            logger.info(f"Routing decision: {routing_decision.reason}")
+            logger.info(f"Agents to run: {[a.value for a in routing_decision.agents_to_run]}")
+
+            # Determine execution mode from routing decision
+            run_parallel = router.should_run_parallel(complexity=routing_decision.complexity.value)
+            logger.info(f"Execution mode: {'parallel' if run_parallel else 'sequential'}")
             logger.info(
                 f"LLM Config: provider={self.config.llm_provider.value if hasattr(self.config.llm_provider, 'value') else self.config.llm_provider}, model={self.config.llm_model}, base_url={self.config.llm_base_url}"
             )
@@ -191,23 +206,42 @@ class GRReviewOrchestrator:
             ci_context_str = format_ci_context(ci_context) if ci_context else ""
             signature_map_str = format_signature_map(repo_map) if repo_map else ""
 
-            if self.config.execution_mode == "parallel":
-                # Run all three agents in parallel
+            # Determine which agents to include based on routing decision
+            from glance.routing import AgentType
+
+            run_architect = AgentType.ARCHITECT in routing_decision.agents_to_run
+            run_bug_hunter = AgentType.BUG_HUNTER in routing_decision.agents_to_run
+            run_white_hat = AgentType.WHITE_HAT in routing_decision.agents_to_run
+
+            if run_parallel:
+                # Run selected agents in parallel
                 (
                     architect_review,
                     bug_hunter_review,
                     white_hat_review,
                 ) = await self._run_parallel_agents(
-                    diff_content, repo_map, ci_context, ci_context_str
+                    diff_content,
+                    repo_map,
+                    ci_context,
+                    ci_context_str,
+                    run_architect=run_architect,
+                    run_bug_hunter=run_bug_hunter,
+                    run_white_hat=run_white_hat,
                 )
             else:
-                # Run agents sequentially
+                # Run selected agents sequentially
                 (
                     architect_review,
                     bug_hunter_review,
                     white_hat_review,
                 ) = await self._run_sequential_agents(
-                    diff_content, repo_map, ci_context, ci_context_str
+                    diff_content,
+                    repo_map,
+                    ci_context,
+                    ci_context_str,
+                    run_architect=run_architect,
+                    run_bug_hunter=run_bug_hunter,
+                    run_white_hat=run_white_hat,
                 )
 
             logger.info(
@@ -250,14 +284,20 @@ class GRReviewOrchestrator:
         repo_map: Any,
         ci_context: Any,
         ci_context_str: str,
+        run_architect: bool = True,
+        run_bug_hunter: bool = True,
+        run_white_hat: bool = True,
     ) -> tuple[AgentReview | None, AgentReview | None, AgentReview | None]:
-        """Run all three agents in parallel.
+        """Run selected agents in parallel.
 
         Args:
             diff_content: Git diff content.
             repo_map: Repository signature map.
             ci_context: CI context object.
             ci_context_str: Formatted CI context string.
+            run_architect: Whether to run architect agent.
+            run_bug_hunter: Whether to run bug hunter agent.
+            run_white_hat: Whether to run white hat agent.
 
         Returns:
             Tuple of (architect_review, bug_hunter_review, white_hat_review).
@@ -280,29 +320,52 @@ class GRReviewOrchestrator:
 
             architect_ci_context = json.dumps(context_data)
 
-        tasks = [
-            self.architect.review(
-                diff_content=diff_content,
-                file_path="",
-                ci_context=architect_ci_context,
-            ),
-            self.bug_hunter.review(
-                diff_content=diff_content,
-                file_path="",
-                ci_context=ci_context_str,
-            ),
-            self.white_hat.review(
-                diff_content=diff_content,
-                file_path="",
-                ci_context=ci_context_str,
-            ),
-        ]
+        tasks = []
+
+        if run_architect:
+            tasks.append(
+                self.architect.review(
+                    diff_content=diff_content,
+                    file_path="",
+                    ci_context=architect_ci_context,
+                )
+            )
+        else:
+            tasks.append(asyncio.coroutine(lambda: None)())
+
+        if run_bug_hunter:
+            tasks.append(
+                self.bug_hunter.review(
+                    diff_content=diff_content,
+                    file_path="",
+                    ci_context=ci_context_str,
+                )
+            )
+        else:
+            tasks.append(asyncio.coroutine(lambda: None)())
+
+        if run_white_hat:
+            tasks.append(
+                self.white_hat.review(
+                    diff_content=diff_content,
+                    file_path="",
+                    ci_context=ci_context_str,
+                )
+            )
+        else:
+            tasks.append(asyncio.coroutine(lambda: None)())
 
         results: list[Any] = await asyncio.gather(*tasks, return_exceptions=True)
 
-        architect_review = results[0] if not isinstance(results[0], Exception) else None
-        bug_hunter_review = results[1] if not isinstance(results[1], Exception) else None
-        white_hat_review = results[2] if not isinstance(results[2], Exception) else None
+        architect_review = (
+            results[0] if run_architect and not isinstance(results[0], Exception) else None
+        )
+        bug_hunter_review = (
+            results[1] if run_bug_hunter and not isinstance(results[1], Exception) else None
+        )
+        white_hat_review = (
+            results[2] if run_white_hat and not isinstance(results[2], Exception) else None
+        )
 
         return architect_review, bug_hunter_review, white_hat_review
 
@@ -312,14 +375,20 @@ class GRReviewOrchestrator:
         repo_map: Any,
         ci_context: Any,
         ci_context_str: str,
-    ) -> tuple[AgentReview, AgentReview, AgentReview]:
-        """Run agents sequentially (one by one).
+        run_architect: bool = True,
+        run_bug_hunter: bool = True,
+        run_white_hat: bool = True,
+    ) -> tuple[AgentReview | None, AgentReview | None, AgentReview | None]:
+        """Run selected agents sequentially (one by one).
 
         Args:
             diff_content: Git diff content.
             repo_map: Repository signature map.
             ci_context: CI context object.
             ci_context_str: Formatted CI context string.
+            run_architect: Whether to run architect agent.
+            run_bug_hunter: Whether to run bug hunter agent.
+            run_white_hat: Whether to run white hat agent.
 
         Returns:
             Tuple of (architect_review, bug_hunter_review, white_hat_review).
@@ -342,26 +411,33 @@ class GRReviewOrchestrator:
 
             architect_ci_context = json.dumps(context_data)
 
-        logger.info("Running Architect (SWE) review...")
-        architect_review = await self.architect.review(
-            diff_content=diff_content,
-            file_path="",
-            ci_context=architect_ci_context,
-        )
+        architect_review = None
+        bug_hunter_review = None
+        white_hat_review = None
 
-        logger.info("Running Bug Hunter (QA) review...")
-        bug_hunter_review = await self.bug_hunter.review(
-            diff_content=diff_content,
-            file_path="",
-            ci_context=ci_context_str,
-        )
+        if run_architect:
+            logger.info("Running Architect (SWE) review...")
+            architect_review = await self.architect.review(
+                diff_content=diff_content,
+                file_path="",
+                ci_context=architect_ci_context,
+            )
 
-        logger.info("Running White Hat (Security) review...")
-        white_hat_review = await self.white_hat.review(
-            diff_content=diff_content,
-            file_path="",
-            ci_context=ci_context_str,
-        )
+        if run_bug_hunter:
+            logger.info("Running Bug Hunter (QA) review...")
+            bug_hunter_review = await self.bug_hunter.review(
+                diff_content=diff_content,
+                file_path="",
+                ci_context=ci_context_str,
+            )
+
+        if run_white_hat:
+            logger.info("Running White Hat (Security) review...")
+            white_hat_review = await self.white_hat.review(
+                diff_content=diff_content,
+                file_path="",
+                ci_context=ci_context_str,
+            )
 
         return architect_review, bug_hunter_review, white_hat_review
 
@@ -387,6 +463,65 @@ class GRReviewOrchestrator:
         except Exception as e:
             logger.error(f"Failed to get PR diff: {e}")
             return ""
+
+    def _extract_pr_metadata(self, pr, diff_content: str) -> dict:
+        """Extract PR metadata for adaptive routing.
+
+        Args:
+            pr: PyGithub PullRequest object.
+            diff_content: Git diff content.
+
+        Returns:
+            Dictionary with routing metadata.
+        """
+        try:
+            files = pr.get_files()
+            file_paths = [f.filename for f in files]
+            files_changed = len(file_paths)
+            lines_changed = diff_content.count("\n") if diff_content else 0
+
+            # Check for test files
+            has_tests = any("test" in fp.lower() for fp in file_paths)
+
+            # Check for security-sensitive files
+            security_patterns = [
+                ".pem",
+                ".key",
+                ".crt",
+                "certificate",
+                "crypto",
+                "auth",
+                "jwt",
+                "oauth",
+            ]
+            has_security_files = any(
+                any(p in fp.lower() for p in security_patterns) for fp in file_paths
+            )
+
+            # Check for config files
+            config_patterns = ["config", ".yml", ".yaml", ".json", "settings", "env", ".toml"]
+            has_config_changes = any(
+                any(p in fp.lower() for p in config_patterns) for fp in file_paths
+            )
+
+            return {
+                "file_paths": file_paths,
+                "files_changed": files_changed,
+                "has_tests": has_tests,
+                "has_security_files": has_security_files,
+                "has_config_changes": has_config_changes,
+                "lines_changed": lines_changed,
+            }
+        except Exception as e:
+            logger.warning(f"Failed to extract PR metadata: {e}")
+            return {
+                "file_paths": [],
+                "files_changed": 0,
+                "has_tests": False,
+                "has_security_files": False,
+                "has_config_changes": False,
+                "lines_changed": 0,
+            }
 
     async def _post_critical_alert(self, pr, findings: list) -> None:
         """Post a critical security alert to the PR."""

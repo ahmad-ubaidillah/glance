@@ -22,6 +22,14 @@ class ExecutionMode(str, Enum):
     SEQUENTIAL = "sequential"  # Run agents one by one (single LLM)
 
 
+class RoutingMode(str, Enum):
+    """Routing mode for adaptive agent selection."""
+
+    ADAPTIVE = "adaptive"  # Smart routing based on PR characteristics
+    PARALLEL = "parallel"  # Always run all agents in parallel
+    SEQUENTIAL = "sequential"  # Always run agents sequentially
+
+
 class LLMProviderConfig(str, Enum):
     """Supported LLM providers."""
 
@@ -68,6 +76,13 @@ class GlanceConfig(BaseSettings):
         "parallel",
         alias="EXECUTION_MODE",
         description="Execution mode: 'parallel' runs all agents simultaneously, 'sequential' runs one by one.",
+    )
+
+    # -- Routing Mode ------------------------------------------------------------
+    routing_mode: RoutingMode = Field(
+        "adaptive",
+        alias="ROUTING_MODE",
+        description="Routing mode: 'adaptive' smart routing based on PR complexity, 'parallel' always all agents, 'sequential' always one by one.",
     )
 
     # -- GitHub Configuration ----------------------------------------------------
