@@ -581,6 +581,9 @@ class GRReviewOrchestrator:
                     if finding.line_number:
                         try:
                             body = self._format_inline_comment(finding)
+                            logger.info(
+                                f"Creating inline comment on {file_path}:{finding.line_number} (commit: {pr.head.sha})"
+                            )
                             pr.create_review_comment(
                                 body=body,
                                 commit_sha=pr.head.sha,
@@ -592,7 +595,9 @@ class GRReviewOrchestrator:
                                 f"Posted inline comment on {file_path}:{finding.line_number}"
                             )
                         except Exception as e:
-                            logger.debug(f"Failed to post inline comment: {e}")
+                            logger.error(
+                                f"Failed to post inline comment on {file_path}:{finding.line_number}: {e}"
+                            )
                     else:
                         logger.debug(f"Skipping finding without line_number: {file_path}")
 
