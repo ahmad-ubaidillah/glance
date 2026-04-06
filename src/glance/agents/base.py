@@ -25,9 +25,11 @@ try:
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
-    APIError = Exception
-    RateLimitError = Exception
-    Timeout = Exception
+
+# Always define these as Exception subclasses to avoid catching issues
+APIError = Exception
+RateLimitError = Exception
+Timeout = Exception
 
 
 class TokenTracker:
