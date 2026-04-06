@@ -19,6 +19,10 @@ from typing import Any
 
 from github import Github
 
+from glance.agents.architect import Architect
+from glance.agents.arbitrator import ArbitratorAgent
+from glance.agents.bug_hunter import BugHunterAgent
+from glance.agents.white_hat import WhiteHatAgent
 from glance.auto_fix import AutoFixGenerator
 from glance.config import GlanceConfig, load_config
 from glance.integrations.ci_status import CIProviderType, create_ci_provider
