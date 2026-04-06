@@ -582,48 +582,6 @@ class CompletionsAdapter:
                     "finish_reason": "stop",
                 }
             ],
-            "usage": response.usage or {
-                "prompt_tokens": 0,
-                "completion_tokens": 0,
-                "total_tokens": 0,
-            },
-            "model": model,
-        }
-        max_tokens: int = 4096,
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        """Create chat completion (OpenAI-compatible interface).
-
-        Args:
-            model: Model name.
-            messages: List of messages.
-            temperature: Sampling temperature.
-            max_tokens: Max tokens in response.
-            **kwargs: Additional parameters.
-
-        Returns:
-            Dict with OpenAI-compatible response structure.
-        """
-        response = await self.client.chat(
-            messages=messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            **kwargs,
-        )
-
-        # Convert to OpenAI-compatible format
-        return {
-            "choices": [
-                {
-                    "message": {
-                        "content": response.content,
-                        "role": "assistant",
-                    },
-                    "index": 0,
-                    "finish_reason": "stop",
-                }
-            ],
             "usage": response.usage
             or {
                 "prompt_tokens": 0,
@@ -633,6 +591,5 @@ class CompletionsAdapter:
             "model": model,
         }
 
-    async def close(self) -> None:
-        """Close the underlying client."""
-        await self.client.close()
+
+# Legacy method removed - using CompletionsAdapter now
