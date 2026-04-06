@@ -582,11 +582,11 @@ class GRReviewOrchestrator:
                         try:
                             body = self._format_inline_comment(finding)
                             logger.info(
-                                f"Creating inline comment on {file_path}:{finding.line_number} (commit: {pr.head.sha})"
+                                f"Creating inline comment on {file_path}:{finding.line_number}"
                             )
                             pr.create_review_comment(
                                 body=body,
-                                commit_sha=pr.head.sha,
+                                commit_id=pr.head.sha,
                                 path=file_path,
                                 line=finding.line_number,
                             )
