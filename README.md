@@ -42,20 +42,30 @@ Glance is an automated, AI-driven code review orchestrator designed to act as a 
 
 ## Quick Start
 
-### Prerequisites
+### One-Line Installation (Recommended)
 
-- Python 3.10+
-- GitHub Personal Access Token
-- LLM API Key (OpenAI, Anthropic, ZhipuAI, etc.)
+```bash
+# Via curl
+curl -sSL https://raw.githubusercontent.com/ahmad-ubaidillah/glance/main/install.sh | bash
 
-### Installation
+# OR via wget
+wget -qO- https://raw.githubusercontent.com/ahmad-ubaidillah/glance/main/install.sh | bash
+```
+
+### Manual Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/glance.git
+git clone https://github.com/ahmad-ubaidillah/glance.git
 cd glance
 
-# Install dependencies
+# Create virtual environment
+python3 -m venv venv
+
+# Activate
+source venv/bin/activate
+
+# Install
 pip install -e .
 
 # Create environment file
@@ -125,14 +135,22 @@ CI_PROVIDER=github           # github, gitlab, jenkins, teamcity, circleci, azur
 # Using OpenAI
 LLM_PROVIDER=openai
 OPENAI_API_KEY=sk-...
+LLM_MODEL=gpt-4
 
 # Using Anthropic
 LLM_PROVIDER=anthropic
 ANTHROPIC_API_KEY=sk-ant-...
+LLM_MODEL=claude-3-sonnet-20240229
 
 # Using Ollama (local)
 LLM_PROVIDER=ollama
 LLM_MODEL=llama2
+LLM_BASE_URL=http://localhost:11434/v1
+
+# Using Custom Provider
+LLM_PROVIDER=custom
+LLM_API_KEY=your-key
+LLM_BASE_URL=https://api.your-provider.com/v1
 ```
 
 ## CI Providers

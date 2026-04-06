@@ -5,8 +5,18 @@
 # Usage:
 #   curl -sSL https://raw.githubusercontent.com/ahmad-ubaidillah/glance/main/install.sh | bash
 #   OR
-#   ./install.sh
+#   wget -qO- https://raw.githubusercontent.com/ahmad-ubaidillah/glance/main/install.sh | bash
+#   OR
+#   git clone https://github.com/ahmad-ubaidillah/glance && cd glance && ./install.sh
 # =============================================================================
+
+# Auto set execute permission if downloaded via curl/wget
+if [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ] || [ ! -t 0 ]; then
+    # Non-interactive (curl | bash mode) - make executable
+    if [ ! -x "$0" ]; then
+        chmod +x "$0" 2>/dev/null || true
+    fi
+fi
 
 set -e
 
