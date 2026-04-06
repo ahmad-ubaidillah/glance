@@ -1,36 +1,10 @@
 #!/bin/bash
 # =============================================================================
-# Glance Installer - One-line installation script
+# Glance Standard Installer - Core + TUI + Memory (~15MB)
 # =============================================================================
 # Usage:
 #   curl -sSL https://raw.githubusercontent.com/ahmad-ubaidillah/glance/main/install.sh | bash
-#   OR
-#   wget -qO- https://raw.githubusercontent.com/ahmad-ubaidillah/glance/main/install.sh | bash
-#   OR
-#   git clone https://github.com/ahmad-ubaidillah/glance && cd glance && ./install.sh
-#
-# Installation Profiles:
-#   --basic  : Core review engine only (~10MB). No TUI, no RAG, no ML.
-#   --full   : Everything including RAG + ML features (~300MB+).
-#   (default): Standard install - core + TUI + memory (~15MB).
 # =============================================================================
-
-# Parse arguments
-INSTALL_PROFILE="standard"
-for arg in "$@"; do
-    case "$arg" in
-        --basic)  INSTALL_PROFILE="basic" ;;
-        --full)   INSTALL_PROFILE="full" ;;
-    esac
-done
-
-# Auto set execute permission if downloaded via curl/wget
-if [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ] || [ ! -t 0 ]; then
-    # Non-interactive (curl | bash mode) - make executable
-    if [ ! -x "$0" ]; then
-        chmod +x "$0" 2>/dev/null || true
-    fi
-fi
 
 set -e
 
@@ -146,35 +120,19 @@ setup_venv() {
 
 # Install Glance
 install_glance() {
-    log_info "Installing Glance ($INSTALL_PROFILE profile)..."
+    log_info "Installing Glance..."
     
-    # Determine install extras
-    EXTRAS=""
-    case "$INSTALL_PROFILE" in
-        basic)  log_info "Basic install - core review engine only" ;;
-        full)   EXTRAS="[rag,local]"
-                log_info "Full install - including RAG + ML features"
-                log_warn "This will download ~300MB of dependencies" ;;
-        *)      log_info "Standard install - core + TUI + memory" ;;
-    esac
-    
-    # Try uv first (faster, modern), fallback to pip
     if command -v uv &> /dev/null; then
-        uv pip install -e ".${EXTRAS}" --quiet
-        uv tool install -e ".${EXTRAS}" --quiet 2>/dev/null || true
-        log_success "Glance installed via uv"
+        uv pip install -e . --quiet
+        uv tool install -e . --quiet 2>/dev/null || true
     elif command -v pip3 &> /dev/null; then
-        pip3 install -e ".${EXTRAS}" --quiet
-        log_success "Glance installed via pip3"
+        pip3 install -e . --quiet
     elif $PYTHON_CMD -m pip --version &> /dev/null; then
-        $PYTHON_CMD -m pip install -e ".${EXTRAS}" --quiet
-        log_success "Glance installed via pip"
+        $PYTHON_CMD -m pip install -e . --quiet
     else
-        log_error "No pip found. Please install pip first."
-        exit 1
+        log_error "No pip found."; exit 1
     fi
     
-    # Verify installation
     if command -v glance &> /dev/null; then
         log_success "Glance CLI available globally! Run 'glance dashboard' from anywhere"
     else
@@ -219,9 +177,15 @@ main() {
     
     echo ""
     echo -e "${GREEN}╔═══════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║                    Installation Complete!                        ║${NC}"
-    echo -e "${GREEN}║                    Profile: $INSTALL_PROFILE                              ║${NC}"
+    echo -e "${GREEN}║              Glance Installed!                                    ║${NC}"
     echo -e "${GREEN}╚═══════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${YELLOW}What you got:${NC}"
+    echo "  ✅ Multi-agent AI code review"
+    echo "  ✅ Adaptive routing"
+    echo "  ✅ Inline comments + auto-fix"
+    echo "  ✅ TUI dashboard"
+    echo "  ✅ Memory & learning system"
     echo ""
     echo -e "${YELLOW}NEXT STEPS:${NC}"
     echo "─────────────────────────────────────────────────────────────────"
@@ -235,11 +199,6 @@ main() {
     echo "3. Or use in your GitHub Actions:"
     echo "   See README.md for the workflow configuration"
     echo ""
-    if [ "$INSTALL_PROFILE" = "basic" ]; then
-        echo -e "${YELLOW}Note: Basic install - TUI dashboard and RAG features are not included.${NC}"
-        echo -e "${YELLOW}      Re-run install with --full to enable all features.${NC}"
-        echo ""
-    fi
     echo -e "${BLUE}For more info: https://github.com/ahmad-ubaidillah/glance${NC}"
     echo ""
 }

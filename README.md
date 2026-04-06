@@ -24,9 +24,36 @@ Glance is an automated AI code review system that acts as a virtual Tech Lead. I
 
 ### Step 1: Install
 
+Choose your installation profile:
+
 ```bash
 curl -sSL https://raw.githubusercontent.com/ahmad-ubaidillah/glance/main/install.sh | bash
 ```
+
+```bash
+curl -sSL https://raw.githubusercontent.com/ahmad-ubaidillah/glance/main/install-basic.sh | bash
+```
+
+```bash
+curl -sSL https://raw.githubusercontent.com/ahmad-ubaidillah/glance/main/install-full.sh | bash
+```
+
+### Installation Comparison
+
+| Feature | Standard | Basic | Full |
+|---------|:--------:|:-----:|:----:|
+| Multi-agent review | ✅ | ✅ | ✅ |
+| Adaptive routing | ✅ | ✅ | ✅ |
+| Inline comments | ✅ | ✅ | ✅ |
+| Auto-fix suggestions | ✅ | ✅ | ✅ |
+| TUI dashboard | ✅ | ❌ | ✅ |
+| Memory & learning | ✅ | ❌ | ✅ |
+| Review history | ✅ | ❌ | ✅ |
+| Custom team rules | ✅ | ❌ | ✅ |
+| RAG (semantic search) | ❌ | ❌ | ✅ |
+| Local ML features | ❌ | ❌ | ✅ |
+| **Size** | **~15MB** | **~10MB** | **~300MB+** |
+| **Best for** | **Most users** | **CI/CD only** | **Power users** |
 
 ### Step 2: Add 2 Secrets
 
