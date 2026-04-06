@@ -668,7 +668,8 @@ class GRReviewOrchestrator:
                     body += f"**`{file_path}`**\n"
                     for i, f in enumerate(sorted_findings, 1):
                         icon = severity_icons.get(f.severity, "🔵")
-                        body += f"{i}. {icon} {f.message}\n"
+                        line_info = f":{f.line_number}" if f.line_number else ""
+                        body += f"{i}. {icon} `{file_path}{line_info}` - {f.message}\n"
                         if f.suggestion:
                             body += f"   └─ 💡 Fix: {f.suggestion}\n"
                     body += "\n"
