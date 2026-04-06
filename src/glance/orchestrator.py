@@ -141,7 +141,8 @@ class GRReviewOrchestrator:
             repo = self.github_client.get_repo(f"{owner}/{repo_name}")
             pr = repo.get_pull(self.config.github_pr_number)
 
-            logger.info(f"Reviewing PR #{pr.number}: {pr.title}")
+            pr_author = pr.user.login if pr.user else None
+            logger.info(f"Reviewing PR #{pr.number}: {pr.title} by @{pr_author}")
 
             # Step 2: Get the diff
             diff_content = self._get_pr_diff(pr)
@@ -277,7 +278,7 @@ class GRReviewOrchestrator:
             await self._post_inline_comments(pr, final_review)
 
             # Step 9: Post Final Verdict
-            await self._post_verdict_comment(pr, final_review)
+            await self._post_verdict_comment(pr, final_review, pr_author)
 
             logger.info("GR-Review completed successfully")
             return 0
@@ -558,7 +559,7 @@ class GRReviewOrchestrator:
             logger.error(f"Failed to post critical alert: {e}")
 
     async def _post_inline_comments(self, pr, review: AgentReview) -> None:
-        """Post inline comments to the PR."""
+        """Post inline comments to the PR at specific line numbers."""
         try:
             by_file: dict[str, list[Finding]] = {}
             for finding in review.findings:
@@ -566,32 +567,45 @@ class GRReviewOrchestrator:
                     by_file[finding.file_path] = []
                 by_file[finding.file_path].append(finding)
 
-            for file_path, findings in by_file.items():
-                files = pr.get_files()
-                target_file = None
-                for f in files:
-                    if f.filename == file_path:
-                        target_file = f
-                        break
+            files = pr.get_files()
+            file_map = {f.filename: f for f in files}
 
+            for file_path, findings in by_file.items():
+                target_file = file_map.get(file_path)
                 if not target_file:
                     continue
 
-                for finding in findings[:10]:
+                for finding in findings:
                     if finding.line_number:
                         try:
-                            body = self._format_finding_comment(finding)
+                            body = self._format_inline_comment(finding)
                             pr.create_review_comment(
                                 body=body,
                                 commit_sha=pr.head.sha,
                                 path=file_path,
                                 line=finding.line_number,
                             )
+                            logger.debug(
+                                f"Posted inline comment on {file_path}:{finding.line_number}"
+                            )
                         except Exception as e:
                             logger.debug(f"Failed to post inline comment: {e}")
 
         except Exception as e:
             logger.error(f"Failed to post inline comments: {e}")
+
+    def _format_inline_comment(self, finding: Finding) -> str:
+        """Format an inline finding comment."""
+        severity_icons = {"critical": "🔴", "warning": "🟡", "info": "🔵"}
+        icon = severity_icons.get(finding.severity, "🔵")
+
+        body = f"{icon} **{finding.severity.upper()}** at line {finding.line_number}\n\n"
+        body += f"{finding.message}\n\n"
+
+        if finding.suggestion:
+            body += f"💡 **Fix:** {finding.suggestion}"
+
+        return body
 
     def _format_finding_comment(self, finding: Finding) -> str:
         """Format a finding as a GitHub comment with better formatting."""
@@ -616,7 +630,9 @@ class GRReviewOrchestrator:
 
         return body
 
-    async def _post_verdict_comment(self, pr, review: AgentReview) -> None:
+    async def _post_verdict_comment(
+        self, pr, review: AgentReview, author_username: str | None = None
+    ) -> None:
         """Post the final verdict as a PR comment."""
         try:
             verdict_emoji = {
@@ -627,9 +643,10 @@ class GRReviewOrchestrator:
 
             emoji = verdict_emoji.get(review.verdict, "❓ UNKNOWN")
 
+            author_mention = f"@{author_username} " if author_username else ""
             body = f"## 🤖 Glance Code Review\n\n"
             body += f"### Verdict: {emoji}\n\n"
-            body += f"**Summary:** {review.summary}\n\n"
+            body += f"**Summary:** {author_mention}{review.summary}\n\n"
 
             total_findings = len(review.findings)
             critical_count = sum(1 for f in review.findings if f.severity == "critical")
