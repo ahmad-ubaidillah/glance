@@ -401,6 +401,7 @@ class GRReviewOrchestrator:
         history_context: str,
         coverage_context: str,
         memory_context: str,
+        rules_context: str,
         run_architect: bool = True,
         run_bug_hunter: bool = True,
         run_white_hat: bool = True,
@@ -426,6 +427,8 @@ class GRReviewOrchestrator:
                 context_data["test_coverage"] = coverage_context
             if memory_context:
                 context_data["memory"] = memory_context
+            if rules_context:
+                context_data["team_rules"] = rules_context
             import json
 
             architect_ci_context = json.dumps(context_data)
@@ -488,6 +491,7 @@ class GRReviewOrchestrator:
         history_context: str,
         coverage_context: str,
         memory_context: str,
+        rules_context: str,
         run_architect: bool = True,
         run_bug_hunter: bool = True,
         run_white_hat: bool = True,
@@ -513,6 +517,8 @@ class GRReviewOrchestrator:
                 context_data["test_coverage"] = coverage_context
             if memory_context:
                 context_data["memory"] = memory_context
+            if rules_context:
+                context_data["team_rules"] = rules_context
             import json
 
             architect_ci_context = json.dumps(context_data)
@@ -548,13 +554,9 @@ class GRReviewOrchestrator:
         return architect_review, bug_hunter_review, white_hat_review
 
     def _get_pr_diff(self, pr) -> str:
-        """Get the diff for a pull request.
+        """Get the diff for a pull request with surrounding context.
 
-        Args:
-            pr: PyGithub PullRequest object.
-
-        Returns:
-            Diff content as string.
+        Includes ±5 lines of surrounding code for better LLM context.
         """
         try:
             files = pr.get_files()
