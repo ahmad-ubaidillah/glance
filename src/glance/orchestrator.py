@@ -570,9 +570,11 @@ class GRReviewOrchestrator:
             files = pr.get_files()
             file_map = {f.filename: f for f in files}
 
+            total_posted = 0
             for file_path, findings in by_file.items():
                 target_file = file_map.get(file_path)
                 if not target_file:
+                    logger.debug(f"File {file_path} not in PR files")
                     continue
 
                 for finding in findings:
@@ -585,11 +587,16 @@ class GRReviewOrchestrator:
                                 path=file_path,
                                 line=finding.line_number,
                             )
+                            total_posted += 1
                             logger.debug(
                                 f"Posted inline comment on {file_path}:{finding.line_number}"
                             )
                         except Exception as e:
                             logger.debug(f"Failed to post inline comment: {e}")
+                    else:
+                        logger.debug(f"Skipping finding without line_number: {file_path}")
+
+            logger.info(f"Posted {total_posted} inline comments")
 
         except Exception as e:
             logger.error(f"Failed to post inline comments: {e}")
