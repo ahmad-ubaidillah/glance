@@ -586,7 +586,7 @@ class GRReviewOrchestrator:
                             )
                             pr.create_review_comment(
                                 body=body,
-                                commit_id=pr.head.sha,
+                                commit=pr.head.sha,
                                 path=file_path,
                                 line=finding.line_number,
                             )
