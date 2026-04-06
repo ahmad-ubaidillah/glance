@@ -1,4 +1,4 @@
-"""Configuration management for GR-Review.
+"""Configuration management for Glance.
 
 Uses pydantic BaseSettings for automatic environment variable loading
 and validation, with optional .env file support via python-dotenv.
