@@ -21,6 +21,7 @@ from github import Github
 
 from glance.auto_fix import AutoFixGenerator
 from glance.config import GlanceConfig, load_config
+from glance.integrations.signature_mapper import SignatureMapper
 from glance.llm.client import LLMClientAdapter, create_llm_client
 from glance.scanners.secret_scanner import SecretScanner
 from glance.agents.base import AgentReview, Finding
