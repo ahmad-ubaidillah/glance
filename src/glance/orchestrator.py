@@ -33,6 +33,7 @@ from glance.integrations.signature_mapper import SignatureMapper, format_signatu
 from glance.integrations.review_history import load_history, save_history, format_history_context
 from glance.integrations.test_coverage import get_coverage_for_files, format_coverage_context
 from glance.integrations.memory import load_memory, save_memory, format_memory_context
+from glance.integrations.pr_response import PRResponseTracker
 from glance.llm.client import LLMClientAdapter, create_llm_client
 from glance.routing import create_router
 from glance.scanners.secret_scanner import SecretScanner
@@ -67,10 +68,12 @@ class GRReviewOrchestrator:
             base_url=llm_config["base_url"],
         )
         self.llm_client = LLMClientAdapter(raw_client)
+        self.raw_client = raw_client
 
         # Initialize components
         self.secret_scanner = SecretScanner()
         self.repo_mapper = SignatureMapper()
+        self.response_tracker = PRResponseTracker()
 
         # Initialize CI provider if configured
         self.ci_provider = None
@@ -337,6 +340,19 @@ class GRReviewOrchestrator:
                         logger.info(f"Posted {fixes_posted} auto-fix suggestions")
             except Exception as e:
                 logger.warning(f"Failed to generate auto-fix suggestions: {e}")
+
+            # Step 13: Track Issues Resolution
+            try:
+                self.response_tracker.record_issues(final_review.findings, pr.number, pr.head.sha)
+                resolution = self.response_tracker.check_resolution(
+                    final_review.findings, pr.head.sha
+                )
+                if resolution["fixed"]:
+                    logger.info(f"{len(resolution['fixed'])} issues resolved")
+                if resolution["still_present"]:
+                    logger.warning(f"{len(resolution['still_present'])} issues still present")
+            except Exception as e:
+                logger.warning(f"Failed to track issue resolution: {e}")
 
             logger.info("GR-Review completed successfully")
             return 0
