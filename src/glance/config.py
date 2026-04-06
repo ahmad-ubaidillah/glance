@@ -40,7 +40,6 @@ class LLMProviderConfig(str, Enum):
     AZURE_OPENAI = "azure_openai"
     OLLAMA = "ollama"
     CUSTOM = "custom"
-    OPENROUTER = "openrouter"
 
 
 class GlanceConfig(BaseSettings):
@@ -54,7 +53,7 @@ class GlanceConfig(BaseSettings):
     llm_provider: LLMProviderConfig = Field(
         "zhipuai",
         alias="LLM_PROVIDER",
-        description="LLM provider to use (openai, anthropic, google, zhipuai, azure_openai, ollama, custom, openrouter).",
+        description="LLM provider to use (openai, anthropic, google, zhipuai, azure_openai, ollama, custom).",
     )
     llm_api_key: str = Field(
         "",
@@ -268,7 +267,6 @@ class GlanceConfig(BaseSettings):
             "azure_openai": os.getenv("AZURE_OPENAI_ENDPOINT", ""),
             "ollama": "http://localhost:11434/v1",
             "custom": "",
-            "openrouter": "https://openrouter.ai/api/v1",
         }
 
         # Get API key from provider-specific env vars if not set
@@ -281,7 +279,6 @@ class GlanceConfig(BaseSettings):
                 "zhipuai": "ZHIPUAI_API_KEY",
                 "azure_openai": "AZURE_OPENAI_API_KEY",
                 "custom": "CUSTOM_API_KEY",
-                "openrouter": "OPENROUTER_API_KEY",
             }
             env_key = env_keys.get(self.llm_provider, "")
             if env_key:
