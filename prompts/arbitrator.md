@@ -82,7 +82,7 @@ Return your findings as a JSON object with this exact schema:
 
 ## Output Guidelines
 
-1. **MAX 6 findings** - Consolidate from 3 agents, prioritize the most critical only
+1. **Report ALL unique findings** - De-duplicate overlapping findings from 3 agents, but report every unique issue.
 2. **Concise but complete**:
    - message: 1-2 sentences, to the point
    - suggestion: 1 sentence actionable fix

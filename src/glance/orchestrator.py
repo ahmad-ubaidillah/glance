@@ -559,7 +559,7 @@ class GRReviewOrchestrator:
             logger.error(f"Failed to post critical alert: {e}")
 
     async def _post_inline_comments(self, pr, review: AgentReview) -> None:
-        """Post inline comments to the PR at specific line numbers."""
+        """Post inline comments for critical issues only."""
         try:
             by_file: dict[str, list[Finding]] = {}
             for finding in review.findings:
@@ -578,7 +578,7 @@ class GRReviewOrchestrator:
                     continue
 
                 for finding in findings:
-                    if finding.line_number:
+                    if finding.line_number and finding.severity == "critical":
                         try:
                             body = self._format_inline_comment(finding)
                             logger.info(
@@ -674,34 +674,28 @@ class GRReviewOrchestrator:
             body += f"| **Total** | **{total_findings}** |\n\n"
 
             if review.findings:
-                # Group findings by file for better actionability
-                by_file: dict[str, list] = {}
-                for f in review.findings:
-                    if f.file_path not in by_file:
-                        by_file[f.file_path] = []
-                    by_file[f.file_path].append(f)
+                # Only show warnings in PR comment (critical/medium go inline)
+                warning_findings = [f for f in review.findings if f.severity == "warning"]
 
-                body += "### 📝 Findings by File\n\n"
+                if warning_findings:
+                    # Group warnings by file
+                    by_file: dict[str, list] = {}
+                    for f in warning_findings:
+                        if f.file_path not in by_file:
+                            by_file[f.file_path] = []
+                        by_file[f.file_path].append(f)
 
-                for file_path, findings in by_file.items():
-                    # Sort findings: critical first
-                    sorted_findings = sorted(
-                        findings,
-                        key=lambda x: (
-                            0 if x.severity == "critical" else 1 if x.severity == "warning" else 2
-                        ),
-                    )
+                    body += "### ⚠️ Warnings (Should Fix)\n\n"
+                    body += "_Critical issues are marked as inline comments on the code._\n\n"
 
-                    severity_icons = {"critical": "🔴", "warning": "🟡", "info": "🔵"}
-
-                    body += f"**`{file_path}`**\n"
-                    for i, f in enumerate(sorted_findings, 1):
-                        icon = severity_icons.get(f.severity, "🔵")
-                        line_info = f":{f.line_number}" if f.line_number else ""
-                        body += f"{i}. {icon} `{file_path}{line_info}` - {f.message}\n"
-                        if f.suggestion:
-                            body += f"   └─ 💡 Fix: {f.suggestion}\n"
-                    body += "\n"
+                    for file_path, findings in by_file.items():
+                        body += f"**`{file_path}`**\n"
+                        for i, f in enumerate(findings, 1):
+                            line_info = f":{f.line_number}" if f.line_number else ""
+                            body += f"{i}. 🟡 `{file_path}{line_info}` - {f.message}\n"
+                            if f.suggestion:
+                                body += f"   └─ 💡 Fix: {f.suggestion}\n"
+                        body += "\n"
 
             body += f"---\n"
             body += f"*Reviewed by Glance AI*"

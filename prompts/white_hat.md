@@ -133,7 +133,7 @@ Return your findings as a JSON object with this exact schema:
 
 ## Output Guidelines
 
-1. **MAX 5 findings** - Only report the most critical security issues. Quality over quantity.
+1. **Report ALL findings** - Do not limit the number. If there are 20 vulnerabilities, report all 20.
 2. **Concise but complete**:
    - message: 1-2 sentences, to the point, explain the security impact
    - suggestion: 1 sentence actionable fix
