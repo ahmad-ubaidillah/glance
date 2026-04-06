@@ -174,16 +174,24 @@ class GRReviewOrchestrator:
                 except Exception as e:
                     logger.warning(f"Failed to fetch CI status: {e}")
 
-            # Step 5: Generate Repository Signature Map
+            # Step 5: Extract PR metadata for adaptive routing
+            pr_metadata = self._extract_pr_metadata(pr, diff_content)
+
+            # Step 6: Generate Repository Signature Map (delta-based - only changed files)
             repo_map = None
             try:
-                repo_map = self.repo_mapper.map_repository()
-                logger.info(f"Mapped {len(repo_map.signatures)} signatures")
+                # Only scan changed files for better performance
+                changed_files = pr_metadata.get("file_paths", [])
+                repo_map = self.repo_mapper.map_repository(
+                    file_patterns=changed_files if changed_files else None
+                )
+                logger.info(
+                    f"Mapped {len(repo_map.signatures)} signatures from {len(changed_files)} changed files"
+                )
             except Exception as e:
                 logger.warning(f"Failed to generate repo map: {e}")
 
-            # Step 6: Adaptive Routing - determine which agents to run
-            pr_metadata = self._extract_pr_metadata(pr, diff_content)
+            # Step 7: Adaptive Routing - determine which agents to run
             router = create_router(
                 mode=self.config.routing_mode.value
                 if hasattr(self.config.routing_mode, "value")
@@ -637,27 +645,36 @@ class GRReviewOrchestrator:
             body += f"| **Total** | **{total_findings}** |\n\n"
 
             if review.findings:
-                critical_findings = [f for f in review.findings if f.severity == "critical"]
-                warning_findings = [f for f in review.findings if f.severity == "warning"]
+                # Group findings by file for better actionability
+                by_file: dict[str, list] = {}
+                for f in review.findings:
+                    if f.file_path not in by_file:
+                        by_file[f.file_path] = []
+                    by_file[f.file_path].append(f)
 
-                if critical_findings:
-                    body += "### 🚨 Critical Issues (Must Fix)\n\n"
-                    for i, f in enumerate(critical_findings, 1):
-                        body += f"{i}. **{f.file_path}:{f.line_number or '?'}** - {f.message}\n"
-                        if f.suggestion:
-                            body += f"   > 💡 Fix: `{f.suggestion}`\n"
-                        body += "\n"
+                body += "### 📝 Findings by File\n\n"
 
-                if warning_findings:
-                    body += "### ⚠️ Warnings (Should Fix)\n\n"
-                    for i, f in enumerate(warning_findings, 1):
-                        body += f"{i}. **{f.file_path}:{f.line_number or '?'}** - {f.message}\n"
+                for file_path, findings in by_file.items():
+                    # Sort findings: critical first
+                    sorted_findings = sorted(
+                        findings,
+                        key=lambda x: (
+                            0 if x.severity == "critical" else 1 if x.severity == "warning" else 2
+                        ),
+                    )
+
+                    severity_icons = {"critical": "🔴", "warning": "🟡", "info": "🔵"}
+
+                    body += f"**`{file_path}`**\n"
+                    for i, f in enumerate(sorted_findings, 1):
+                        icon = severity_icons.get(f.severity, "🔵")
+                        body += f"{i}. {icon} {f.message}\n"
                         if f.suggestion:
-                            body += f"   > 💡 Fix: `{f.suggestion}`\n"
-                        body += "\n"
+                            body += f"   └─ 💡 Fix: {f.suggestion}\n"
+                    body += "\n"
 
             body += f"---\n"
-            body += f"*Reviewed by Glance AI - Multi-agent Code Review System*"
+            body += f"*Reviewed by Glance AI*"
 
             pr.create_issue_comment(body)
 
