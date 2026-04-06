@@ -549,15 +549,15 @@ class OpenRouterClient(BaseLLMClient):
         """Alias for chat method."""
         return await self.chat(messages, model, temperature, max_tokens, **kwargs)
 
-    async def stream_chat(
+    async def chat_streaming(
         self,
-        messages: list[dict],
+        messages: list[dict[str, str]],
         model: str | None = None,
-        temperature: float = 0.7,
+        temperature: float = 0.3,
         max_tokens: int = 4096,
         **kwargs: Any,
-    ) -> AsyncGenerator[LLMResponse, None]:
-        """Streaming not fully implemented for OpenRouter."""
+    ) -> AsyncIterator[LLMResponse]:
+        """Send streaming chat completion request."""
         response = await self.chat(messages, model, temperature, max_tokens, **kwargs)
         yield response
 
