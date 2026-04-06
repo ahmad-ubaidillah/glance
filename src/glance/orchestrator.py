@@ -451,23 +451,25 @@ class GRReviewOrchestrator:
             logger.error(f"Failed to post inline comments: {e}")
 
     def _format_finding_comment(self, finding: Finding) -> str:
-        """Format a finding as a GitHub comment."""
-        severity_emoji = {
-            "critical": "[CRITICAL]",
-            "warning": "[WARNING]",
-            "info": "[INFO]",
+        """Format a finding as a GitHub comment with better formatting."""
+        severity_colors = {
+            "critical": "🔴 CRITICAL",
+            "warning": "🟡 WARNING",
+            "info": "🔵 INFO",
         }
 
-        emoji = severity_emoji.get(finding.severity, "[INFO]")
+        color = severity_colors.get(finding.severity, "🔵 INFO")
 
-        body = f"{emoji} **{finding.severity.upper()}** - {finding.category}\n\n"
-        body += f"{finding.message}\n\n"
-
-        if finding.suggestion:
-            body += f"**Suggestion:** {finding.suggestion}\n"
+        body = f"## {color}\n\n"
+        body += f"**Category:** {finding.category}\n\n"
+        body += f"**Location:** `{finding.file_path}:{finding.line_number or 'N/A'}`\n\n"
+        body += f"**Issue:** {finding.message}\n\n"
 
         if finding.code_snippet:
-            body += f"\n```\n{finding.code_snippet[:200]}\n```"
+            body += f"**Problematic Code:**\n```python\n{finding.code_snippet[:300]}\n```\n\n"
+
+        if finding.suggestion:
+            body += f"**Suggested Fix:**\n```python\n{finding.suggestion}\n```\n\n"
 
         return body
 
@@ -475,30 +477,49 @@ class GRReviewOrchestrator:
         """Post the final verdict as a PR comment."""
         try:
             verdict_emoji = {
-                "pass": "APPROVED",
-                "concerns": "CHANGES REQUESTED",
-                "critical": "BLOCKED",
+                "pass": "✅ APPROVED",
+                "concerns": "⚠️ CHANGES REQUESTED",
+                "critical": "🛑 BLOCKED",
             }
 
-            emoji = verdict_emoji.get(review.verdict, "UNKNOWN")
+            emoji = verdict_emoji.get(review.verdict, "❓ UNKNOWN")
 
-            body = f"## GR-Review Verdict\n\n"
-            body += f"**Status:** {emoji}\n\n"
-            body += f"### Summary\n{review.summary}\n\n"
+            body = f"## 🤖 Glance Code Review\n\n"
+            body += f"### Verdict: {emoji}\n\n"
+            body += f"**Summary:** {review.summary}\n\n"
 
             total_findings = len(review.findings)
             critical_count = sum(1 for f in review.findings if f.severity == "critical")
             warning_count = sum(1 for f in review.findings if f.severity == "warning")
+            info_count = sum(1 for f in review.findings if f.severity == "info")
 
-            body += f"### Statistics\n"
-            body += f"- Total Findings: {total_findings}\n"
-            body += f"- Critical: {critical_count}\n"
-            body += f"- Warnings: {warning_count}\n\n"
+            body += f"### 📊 Statistics\n"
+            body += f"| Severity | Count |\n"
+            body += f"|----------|-------|\n"
+            body += f"| 🔴 Critical | {critical_count} |\n"
+            body += f"| 🟡 Warning | {warning_count} |\n"
+            body += f"| 🔵 Info | {info_count} |\n"
+            body += f"| **Total** | **{total_findings}** |\n\n"
 
             if review.findings:
-                body += "### Action Items\n"
-                for i, finding in enumerate(review.findings[:5], 1):
-                    body += f"{i}. `{finding.file_path}:{finding.line_number or '?'}` - {finding.message[:80]}\n"
+                body += "### 🚨 Critical Issues (Must Fix)\n\n"
+                for f in review.findings:
+                    if f.severity == "critical":
+                        body += f"- **{f.file_path}:{f.line_number or '?'}** - {f.message[:100]}\n"
+                        if f.suggestion:
+                            body += f"  > 💡 Fix: `{f.suggestion[:80]}`\n"
+                        body += "\n"
+
+                body += "### ⚠️ Warnings (Should Fix)\n\n"
+                for f in review.findings:
+                    if f.severity == "warning":
+                        body += f"- **{f.file_path}:{f.line_number or '?'}** - {f.message[:100]}\n"
+                        if f.suggestion:
+                            body += f"  > 💡 Fix: `{f.suggestion[:80]}`\n"
+                        body += "\n"
+
+            body += f"---\n"
+            body += f"*Reviewed by Glance AI - Multi-agent Code Review System*"
 
             pr.create_issue_comment(body)
 
