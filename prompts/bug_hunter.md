@@ -154,6 +154,7 @@ You will receive:
 - Optional CI build status (test failures, lint errors)
 - Optional review history (previous findings for these files)
 - Optional test coverage info (which files have tests)
+- Optional memory context (developer patterns, recurring issues, lessons learned)
 
 ### How to Use Context
 
@@ -165,6 +166,12 @@ You will receive:
 - If a file has NO tests → any bug you find is more dangerous (no safety net)
 - Flag untested code paths: "This logic has no test coverage - bugs here will slip through"
 - Prioritize findings in untested files over tested files
+
+**Memory Context:**
+- Read developer patterns - know what types of bugs they commonly introduce
+- If developer has a history of null-reference errors, check specifically for those
+- Use lessons learned from previous fixes to suggest proven solutions
+- If the same bug pattern appeared across branches, it's a systemic issue
 
 Focus on finding bugs that existing tests might not catch.
 

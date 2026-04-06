@@ -164,6 +164,7 @@ You will receive:
 - Optional CI build status
 - Optional review history (previous findings for these files)
 - Optional test coverage info (which files have tests)
+- Optional memory context (developer patterns, recurring issues, lessons learned)
 
 ### How to Use Context
 
@@ -175,5 +176,11 @@ You will receive:
 **Test Coverage:**
 - Security vulnerabilities in untested code are higher risk (no regression tests)
 - Flag: "This security issue has no test coverage - verify the fix works"
+
+**Memory Context:**
+- Read developer security patterns - know their common security mistakes
+- If developer has history of auth bypasses, check specifically for those
+- Use lessons learned from previous security fixes to suggest proven solutions
+- Cross-reference with past security incidents in this repo
 
 Return ONLY the JSON object. No markdown, no explanation outside the JSON.

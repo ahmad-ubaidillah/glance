@@ -116,6 +116,7 @@ You will receive:
 - Optional CI build status context
 - Optional review history (previous findings for these files)
 - Optional test coverage info (which files have tests)
+- Optional memory context (developer patterns, recurring issues, lessons learned)
 
 ### How to Use Context
 
@@ -128,6 +129,12 @@ You will receive:
 - If a file has NO tests AND has architectural issues → escalate severity
 - Complex code without tests is a maintenance risk
 - Flag: "This complex logic has no test coverage - consider adding tests"
+
+**Memory Context:**
+- Read developer patterns before reviewing - know their common mistakes
+- If developer has recurring mistakes, check specifically for those
+- Use lessons learned from previous fixes to suggest better alternatives
+- If same issue appeared across multiple branches, it's a systemic problem
 
 Use the signature map to understand the broader architecture and identify cross-file dependencies or violations of architectural boundaries.
 

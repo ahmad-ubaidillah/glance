@@ -16,6 +16,7 @@ import asyncio
 import logging
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,7 @@ from glance.integrations.ci_status import CIProviderType, create_ci_provider, fo
 from glance.integrations.signature_mapper import SignatureMapper, format_signature_map
 from glance.integrations.review_history import load_history, save_history, format_history_context
 from glance.integrations.test_coverage import get_coverage_for_files, format_coverage_context
+from glance.integrations.memory import load_memory, save_memory, format_memory_context
 from glance.llm.client import LLMClientAdapter, create_llm_client
 from glance.routing import create_router
 from glance.scanners.secret_scanner import SecretScanner
@@ -215,18 +217,22 @@ class GRReviewOrchestrator:
                 f"LLM Config: provider={self.config.llm_provider.value if hasattr(self.config.llm_provider, 'value') else self.config.llm_provider}, model={self.config.llm_model}, base_url={self.config.llm_base_url}"
             )
 
-            # Step 8: Load review history and test coverage
+            # Step 8: Load review history, test coverage, and memory
             import os
 
             repo_root = Path(os.getcwd())
             review_history = load_history(repo_root)
             coverage_info = get_coverage_for_files(repo_root, pr_metadata.get("file_paths", []))
+            memory = load_memory(repo_root)
 
             # Prepare context for agents
             ci_context_str = format_ci_context(ci_context) if ci_context else ""
             signature_map_str = format_signature_map(repo_map) if repo_map else ""
             history_context = ""
             coverage_context = format_coverage_context(coverage_info)
+            memory_context = format_memory_context(
+                memory, pr_author, pr_metadata.get("file_paths", [])
+            )
 
             # Determine which agents to include based on routing decision
             from glance.routing import AgentType
@@ -236,7 +242,6 @@ class GRReviewOrchestrator:
             run_white_hat = AgentType.WHITE_HAT in routing_decision.agents_to_run
 
             if run_parallel:
-                # Run selected agents in parallel
                 (
                     architect_review,
                     bug_hunter_review,
@@ -248,12 +253,12 @@ class GRReviewOrchestrator:
                     ci_context_str,
                     history_context,
                     coverage_context,
+                    memory_context,
                     run_architect=run_architect,
                     run_bug_hunter=run_bug_hunter,
                     run_white_hat=run_white_hat,
                 )
             else:
-                # Run selected agents sequentially
                 (
                     architect_review,
                     bug_hunter_review,
@@ -265,6 +270,7 @@ class GRReviewOrchestrator:
                     ci_context_str,
                     history_context,
                     coverage_context,
+                    memory_context,
                     run_architect=run_architect,
                     run_bug_hunter=run_bug_hunter,
                     run_white_hat=run_white_hat,
@@ -306,6 +312,18 @@ class GRReviewOrchestrator:
             except Exception as e:
                 logger.warning(f"Failed to save review history: {e}")
 
+            # Step 11: Update Memory
+            try:
+                memory.total_reviews += 1
+                dev_profile = memory.get_developer(pr_author)
+                dev_profile.total_prs_reviewed += 1
+                dev_profile.last_review_date = datetime.now().isoformat()
+                for finding in final_review.findings:
+                    dev_profile.record_issue(finding.category, finding.severity)
+                save_memory(repo_root, memory)
+            except Exception as e:
+                logger.warning(f"Failed to save memory: {e}")
+
             logger.info("GR-Review completed successfully")
             return 0
 
@@ -321,6 +339,7 @@ class GRReviewOrchestrator:
         ci_context_str: str,
         history_context: str,
         coverage_context: str,
+        memory_context: str,
         run_architect: bool = True,
         run_bug_hunter: bool = True,
         run_white_hat: bool = True,
@@ -344,6 +363,8 @@ class GRReviewOrchestrator:
                 context_data["review_history"] = history_context
             if coverage_context:
                 context_data["test_coverage"] = coverage_context
+            if memory_context:
+                context_data["memory"] = memory_context
             import json
 
             architect_ci_context = json.dumps(context_data)
@@ -405,6 +426,7 @@ class GRReviewOrchestrator:
         ci_context_str: str,
         history_context: str,
         coverage_context: str,
+        memory_context: str,
         run_architect: bool = True,
         run_bug_hunter: bool = True,
         run_white_hat: bool = True,
@@ -428,6 +450,8 @@ class GRReviewOrchestrator:
                 context_data["review_history"] = history_context
             if coverage_context:
                 context_data["test_coverage"] = coverage_context
+            if memory_context:
+                context_data["memory"] = memory_context
             import json
 
             architect_ci_context = json.dumps(context_data)
