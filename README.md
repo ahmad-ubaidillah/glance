@@ -6,174 +6,139 @@
   <img src="https://img.shields.io/badge/License-MIT-orange" alt="License">
 </p>
 
-Glance is an automated, AI-driven code review system that acts as a virtual Tech Lead. It analyzes GitHub Pull Requests using multi-agent architecture from three perspectives: Software Engineering (Clean Code), Quality Assurance (Logic & Bugs), and Cybersecurity.
+Glance is an automated AI code review system that acts as a virtual Tech Lead. It analyzes GitHub/GitLab Pull Requests using multi-agent architecture.
 
-## Features
+## Why Glance?
 
-- **Multi-Agent Architecture**: 4 specialized AI agents (Architect, Bug Hunter, White Hat, Arbitrator)
-- **Adaptive Routing**: Smart agent selection based on PR complexity - only runs necessary agents
-- **Delta-Based Repo Mapping**: Only scans changed files for better performance
-- **GitHub Integration**: Inline comments at specific lines + final verdict with author tagging
-- **Smart Output**: Grouped findings by file, severity-sorted, numbered lists
-- **Flexible LLM Support**: Works with OpenAI, Anthropic, Google Gemini, ZhipuAI, Azure OpenAI, Ollama
-- **Multi-CI Support**: GitHub Actions, GitLab CI, Jenkins, TeamCity, CircleCI, Azure DevOps
-- **Security First**: Built-in secret scanning to prevent sensitive data exposure
+| Feature | Benefit |
+|---------|---------|
+| **1-Line Install** | No server, no setup - just install and run |
+| **Self-Hosted on CI** | Runs on your existing GitHub Actions / GitLab CI |
+| **Adaptive** | Smart agent selection - runs more agents for complex PRs |
+| **Token Efficient** | Only critical issues get inline comments |
+| **Multi-Provider** | Works with ZhipuAI, OpenAI, Anthropic, Google, Azure |
 
-## Quick Start
+## Quick Start (3 Steps)
 
-### One-Line Installation (Recommended)
+### Step 1: Install
 
 ```bash
-# Via curl
 curl -sSL https://raw.githubusercontent.com/ahmad-ubaidillah/glance/main/install.sh | bash
-
-# OR via wget
-wget -qO- https://raw.githubusercontent.com/ahmad-ubaidillah/glance/main/install.sh | bash
 ```
 
-### Manual Installation
+### Step 2: Add 2 Secrets
 
-```bash
-# Clone the repository
-git clone https://github.com/ahmad-ubaidillah/glance.git
-cd glance
+Go to **Repository → Settings → Secrets and variables → Actions**
 
-# Create virtual environment
-python3 -m venv venv
+| Secret | Value |
+|--------|-------|
+| `LLM_API_KEY` | Your LLM API key (ZhipuAI, OpenAI, etc) |
+| `GIT_TOKEN` | Git provider token with repo write access |
 
-# Activate
-source venv/bin/activate
+### Step 3: Run
 
-# Install
-pip install -e .
-```
+Push a PR - Glance automatically reviews it!
 
-## GitHub Actions Integration
+---
 
-### Step 1: Add GitHub Secrets
+## Configuration
 
-Go to **Repository → Settings → Secrets and variables → Actions**, add:
-
-| Secret | Description | Example |
-|--------|-------------|---------|
-| `LLM_API_KEY` | Your LLM provider API key | Get from ZhipuAI/OpenAI/Anthropic |
-| `PAT_TOKEN` | GitHub token with repo write access | Generate with repo scope |
-
-### Step 2: Create Workflow
-
-Create `.github/workflows/glance.yml`:
+After installation, edit your workflow file (usually `.github/workflows/glance.yml` or `.github/workflows/ci.yml`):
 
 ```yaml
-name: Glance AI Code Review
-
-on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install Glance
-        run: pip install -e git+https://github.com/ahmad-ubaidillah/glance.git#egg=glance
-
-      - name: Run Glance
-        env:
-          # === CONFIGURABLE SECTION ===
-          # Change these to use different LLM provider/model
-          LLM_PROVIDER: zhipuai
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-          LLM_MODEL: glm-5
-          LLM_BASE_URL: https://api.z.ai/api/coding/paas/v4
-          # ============================
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN || github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          python -c "from glance.orchestrator import main; main()" || true
+- name: Run Glance
+  env:
+    # === CHANGE THESE ===
+    LLM_PROVIDER: zhipuai      # openai, anthropic, google, zhipuai, ollama
+    LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+    LLM_MODEL: glm-5           # model name for your provider
+    LLM_BASE_URL: https://api.z.ai/api/coding/paas/v4
+    # ======================
+    GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+    GITHUB_REPOSITORY: ${{ github.repository }}
+    GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
+  run: python -c "from glance.orchestrator import main; main()"
 ```
 
-### Configuration Options
+---
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LLM_PROVIDER` | zhipuai | Provider: openai, anthropic, google, zhipuai, azure_openai, ollama, custom |
-| `LLM_MODEL` | glm-5 | Model name (provider-specific) |
-| `LLM_BASE_URL` | (provider default) | Custom API endpoint |
+## Supported LLM Providers
 
-## Example Review Output
+| Provider | Model Example | API Key Secret |
+|----------|---------------|----------------|
+| **ZhipuAI** (recommended) | glm-4-flash, glm-5 | `ZHIPUAI_API_KEY` |
+| OpenAI | gpt-4, gpt-3.5-turbo | `OPENAI_API_KEY` |
+| Anthropic | claude-3-opus, claude-3-sonnet | `ANTHROPIC_API_KEY` |
+| Google | gemini-pro, gemini-ultra | `GOOGLE_API_KEY` |
 
-Glance posts a comprehensive review comment:
+---
 
+## Example Output
+
+Glance posts to your PR:
+
+### Verdict Comment (on PR)
 ```markdown
 ## 🤖 Glance Code Review
 
 ### Verdict: 🛑 BLOCKED
 
-**Summary:** @author This PR introduces 3 critical security issues...
+**Summary:** @author This PR has 2 critical security issues...
 
 ### 📊 Statistics
 | Severity | Count |
 |----------|-------|
-| 🔴 Critical | 3 |
-| 🟡 Warning | 2 |
+| 🔴 Critical | 2 |
+| 🟡 Warning | 1 |
 
-### 📝 Findings by File
-
-**`app.py`**
-1. 🔴 `app.py:42` - Security issue description
-   └─ 💡 Fix: Suggested fix here
-2. 🟡 `app.py:15` - Warning description
-   └─ 💡 Fix: Suggested fix here
+### ⚠️ Warnings (Should Fix)
+1. `app.py:50` - Missing null check
+   └─ 💡 Fix: Add validation
 ```
 
-## Supported LLM Providers
-
-| Provider | API Key Variable | Model Example |
-|----------|-----------------|---------------|
-| ZhipuAI | `ZHIPUAI_API_KEY` | glm-4-flash, glm-5 |
-| OpenAI | `OPENAI_API_KEY` | gpt-4, gpt-3.5-turbo |
-| Anthropic | `ANTHROPIC_API_KEY` | claude-3-opus, claude-3-sonnet |
-| Google | `GOOGLE_API_KEY` | gemini-pro, gemini-ultra |
-| Azure OpenAI | `AZURE_OPENAI_API_KEY` | (deployment name) |
-| Ollama | (local) | llama2, mistral |
-
-## Adaptive Routing
-
-Glance automatically selects which agents to run based on PR complexity:
-
-| PR Type | Complexity | Agents Selected |
-|---------|------------|-----------------|
-| 1 file, <20 lines | SIMPLE | Architect + Arbitrator |
-| 2-5 files, <100 lines | MEDIUM | Architect + BugHunter + Arbitrator |
-| 10+ files, 200+ lines | COMPLEX | All 4 agents |
-
-## Customizing Agents
-
-Edit agent prompts in `prompts/` directory:
-
+### Inline Comments (on code)
 ```
-prompts/
-├── architect.md      # SWE/Architecture agent
-├── bug_hunter.md     # QA/Bug detection agent
-├── white_hat.md      # Security agent
-└── arbitrator.md     # Final verdict agent
+🔴 CRITICAL at line 42
+Authentication is broken - only checks header exists...
+💡 Fix: Implement proper token validation
 ```
 
-## Security Best Practices
+**Smart Commenting:**
+- **Inline comments**: Only for Critical + Medium issues (at specific lines)
+- **PR comment**: Summary + Warnings only (no duplicates)
 
-- **NEVER commit API keys** to version control
-- Use GitHub Secrets for sensitive values
-- Use `PAT_TOKEN` with minimal scope (repo access)
-- Rotate API keys regularly
+---
+
+## Architecture
+
+```
+PR Diff → Adaptive Router → Selected Agents (Architect, BugHunter, WhiteHat)
+                                      ↓
+                              Arbitrator (consolidate)
+                                      ↓
+                              Final Verdict → GitHub Comment + Inline
+```
+
+**Adaptive Routing:**
+| PR Type | Complexity | Agents |
+|---------|------------|--------|
+| <20 lines | Simple | Architect |
+| 2-5 files | Medium | Architect + BugHunter |
+| 10+ files | Complex | All 4 agents |
+
+---
+
+## Customization
+
+### Edit Agent Prompts
+Edit files in `prompts/` directory:
+- `architect.md` - Software Engineering
+- `bug_hunter.md` - QA & Bug Detection  
+- `white_hat.md` - Security
+- `arbitrator.md` - Final Verdict
+
+---
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) for details.
+MIT License

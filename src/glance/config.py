@@ -85,11 +85,11 @@ class GlanceConfig(BaseSettings):
         description="Routing mode: 'adaptive' smart routing based on PR complexity, 'parallel' always all agents, 'sequential' always one by one.",
     )
 
-    # -- GitHub Configuration ----------------------------------------------------
+    # -- GitHub/GitLab Configuration ---------------------------------------------
     github_token: str = Field(
         "",
         alias="GITHUB_TOKEN",
-        description="GitHub personal access token with repo scope.",
+        description="Git provider token (GitHub PAT, GitLab token) with repo write scope.",
     )
     github_repository: str = Field(
         "",
