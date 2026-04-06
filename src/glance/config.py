@@ -124,6 +124,18 @@ class GlanceConfig(BaseSettings):
         description="Enable smart truncation for large diffs.",
     )
 
+    # -- Memory & Learning Configuration ---------------------------------------
+    enable_memory: bool = Field(
+        True,
+        alias="ENABLE_MEMORY",
+        description="Enable persistent memory - learns developer patterns and recurring issues.",
+    )
+    enable_review_history: bool = Field(
+        True,
+        alias="ENABLE_REVIEW_HISTORY",
+        description="Enable review history tracking across PRs.",
+    )
+
     # -- Linter Configuration ----------------------------------------------------
     linter_command: str = Field(
         "eslint",

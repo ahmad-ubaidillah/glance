@@ -227,13 +227,13 @@ class GRReviewOrchestrator:
                 f"LLM Config: provider={self.config.llm_provider.value if hasattr(self.config.llm_provider, 'value') else self.config.llm_provider}, model={self.config.llm_model}, base_url={self.config.llm_base_url}"
             )
 
-            # Step 8: Load review history, test coverage, and memory
+            # Step 8: Load review history, test coverage, and memory (if enabled)
             import os
 
             repo_root = Path(os.getcwd())
-            review_history = load_history(repo_root)
+            review_history = load_history(repo_root) if self.config.enable_review_history else None
             coverage_info = get_coverage_for_files(repo_root, pr_metadata.get("file_paths", []))
-            memory = load_memory(repo_root)
+            memory = load_memory(repo_root) if self.config.enable_memory else None
             team_rules = load_team_rules(repo_root)
 
             # Prepare context for agents
@@ -241,8 +241,10 @@ class GRReviewOrchestrator:
             signature_map_str = format_signature_map(repo_map) if repo_map else ""
             history_context = ""
             coverage_context = format_coverage_context(coverage_info)
-            memory_context = format_memory_context(
-                memory, pr_author, pr_metadata.get("file_paths", [])
+            memory_context = (
+                format_memory_context(memory, pr_author, pr_metadata.get("file_paths", []))
+                if memory
+                else ""
             )
             rules_context = format_rules_context(team_rules)
 
@@ -317,26 +319,28 @@ class GRReviewOrchestrator:
             # Step 9: Post Final Verdict
             await self._post_verdict_comment(pr, final_review, pr_author)
 
-            # Step 10: Save Review History
-            try:
-                repo_root = Path(os.getcwd())
-                save_history(
-                    repo_root, review_history, final_review.findings, pr.number, pr.head.sha
-                )
-            except Exception as e:
-                logger.warning(f"Failed to save review history: {e}")
+            # Step 10: Save Review History (if enabled)
+            if self.config.enable_review_history and review_history:
+                try:
+                    repo_root = Path(os.getcwd())
+                    save_history(
+                        repo_root, review_history, final_review.findings, pr.number, pr.head.sha
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to save review history: {e}")
 
-            # Step 11: Update Memory
-            try:
-                memory.total_reviews += 1
-                dev_profile = memory.get_developer(pr_author)
-                dev_profile.total_prs_reviewed += 1
-                dev_profile.last_review_date = datetime.now().isoformat()
-                for finding in final_review.findings:
-                    dev_profile.record_issue(finding.category, finding.severity)
-                save_memory(repo_root, memory)
-            except Exception as e:
-                logger.warning(f"Failed to save memory: {e}")
+            # Step 11: Update Memory (if enabled)
+            if self.config.enable_memory and memory:
+                try:
+                    memory.total_reviews += 1
+                    dev_profile = memory.get_developer(pr_author)
+                    dev_profile.total_prs_reviewed += 1
+                    dev_profile.last_review_date = datetime.now().isoformat()
+                    for finding in final_review.findings:
+                        dev_profile.record_issue(finding.category, finding.severity)
+                    save_memory(repo_root, memory)
+                except Exception as e:
+                    logger.warning(f"Failed to save memory: {e}")
 
             # Step 12: Generate Auto-Fix Suggestions
             try:

@@ -28,7 +28,8 @@ MENU_SETTINGS = """
 ║  2. 🔄 Execution Mode                    ║
 ║  3. 🧭 Routing Mode                      ║
 ║  4. 📝 Custom Team Rules                 ║
-║  5. 🔙 Back to Main Menu                 ║
+║  5. 🧠 Memory & Learning (enable/disable)║
+║  6. 🔙 Back to Main Menu                 ║
 ╚══════════════════════════════════════════╝
 """
 
@@ -244,6 +245,41 @@ def configure_routing(repo_root: Path) -> None:
         print(f"✅ Routing mode set to {choice}")
 
 
+def configure_memory(repo_root: Path) -> None:
+    env_file = repo_root / ".env"
+    config = {}
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            if "=" in line and not line.startswith("#"):
+                k, v = line.split("=", 1)
+                config[k.strip()] = v.strip().strip('"').strip("'")
+
+    print("\n--- Memory & Learning ---")
+    mem_enabled = config.get("ENABLE_MEMORY", "true")
+    hist_enabled = config.get("ENABLE_REVIEW_HISTORY", "true")
+    print(f"  Persistent Memory: {mem_enabled}")
+    print(f"  Review History: {hist_enabled}")
+    print("\n  1. Enable all learning")
+    print("  2. Disable all learning (no data stored)")
+    print("  3. Custom (choose individually)")
+
+    choice = input("\nSelect: ").strip()
+    if choice == "1":
+        config["ENABLE_MEMORY"] = "true"
+        config["ENABLE_REVIEW_HISTORY"] = "true"
+    elif choice == "2":
+        config["ENABLE_MEMORY"] = "false"
+        config["ENABLE_REVIEW_HISTORY"] = "false"
+    elif choice == "3":
+        config["ENABLE_MEMORY"] = input("Enable memory? (true/false): ").strip() or "true"
+        config["ENABLE_REVIEW_HISTORY"] = (
+            input("Enable review history? (true/false): ").strip() or "true"
+        )
+
+    env_file.write_text("\n".join(f"{k}={v}" for k, v in config.items()) + "\n")
+    print("✅ Memory settings saved")
+
+
 def configure_team_rules(repo_root: Path) -> None:
     rules_file = repo_root / ".glance" / "rules.json"
     rules_file.parent.mkdir(parents=True, exist_ok=True)
@@ -309,7 +345,7 @@ def main():
         elif choice == "4":
             while True:
                 print(MENU_SETTINGS)
-                sub = input("Select option (1-5): ").strip()
+                sub = input("Select option (1-6): ").strip()
                 if sub == "1":
                     configure_llm(repo_root)
                 elif sub == "2":
@@ -319,6 +355,8 @@ def main():
                 elif sub == "4":
                     configure_team_rules(repo_root)
                 elif sub == "5":
+                    configure_memory(repo_root)
+                elif sub == "6":
                     break
                 input("\nPress Enter to continue...")
         elif choice == "5":
