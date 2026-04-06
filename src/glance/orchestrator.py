@@ -324,6 +324,20 @@ class GRReviewOrchestrator:
             except Exception as e:
                 logger.warning(f"Failed to save memory: {e}")
 
+            # Step 12: Generate Auto-Fix Suggestions
+            try:
+                from glance.auto_fix import generate_and_post_fixes
+
+                critical_findings = [f for f in final_review.findings if f.severity == "critical"]
+                if critical_findings and self.raw_client:
+                    fixes_posted = await generate_and_post_fixes(
+                        pr, critical_findings, diff_content, self.raw_client, self.config.llm_model
+                    )
+                    if fixes_posted:
+                        logger.info(f"Posted {fixes_posted} auto-fix suggestions")
+            except Exception as e:
+                logger.warning(f"Failed to generate auto-fix suggestions: {e}")
+
             logger.info("GR-Review completed successfully")
             return 0
 
