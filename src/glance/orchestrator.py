@@ -34,6 +34,12 @@ from glance.integrations.review_history import load_history, save_history, forma
 from glance.integrations.test_coverage import get_coverage_for_files, format_coverage_context
 from glance.integrations.memory import load_memory, save_memory, format_memory_context
 from glance.integrations.pr_response import PRResponseTracker
+from glance.integrations.cost_tracker import (
+    CostTracker,
+    TokenUsage,
+    load_cost_tracker,
+    save_cost_tracker,
+)
 from glance.llm.client import LLMClientAdapter, create_llm_client
 from glance.routing import create_router
 from glance.scanners.secret_scanner import SecretScanner
@@ -353,6 +359,28 @@ class GRReviewOrchestrator:
                     logger.warning(f"{len(resolution['still_present'])} issues still present")
             except Exception as e:
                 logger.warning(f"Failed to track issue resolution: {e}")
+
+            # Step 14: Save Cost Tracking
+            try:
+                cost_tracker = load_cost_tracker(repo_root)
+                cost_tracker.add_review(
+                    TokenUsage(
+                        review_id=f"pr-{pr.number}-{pr.head.sha[:8]}",
+                        provider=self.config.llm_provider.value
+                        if hasattr(self.config.llm_provider, "value")
+                        else self.config.llm_provider,
+                        model=self.config.llm_model,
+                        input_tokens=0,
+                        output_tokens=0,
+                        total_tokens=0,
+                        timestamp=datetime.now().isoformat(),
+                        duration_seconds=0.0,
+                    )
+                )
+                save_cost_tracker(repo_root, cost_tracker)
+                logger.info(cost_tracker.get_summary())
+            except Exception as e:
+                logger.warning(f"Failed to save cost tracking: {e}")
 
             logger.info("GR-Review completed successfully")
             return 0
