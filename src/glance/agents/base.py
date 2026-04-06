@@ -319,11 +319,6 @@ class BaseAgent(ABC):
                 content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
             else:
                 content = response.choices[0].message.content
-                )
-                content = response.content
-            else:
-                # Fallback
-                raise ValueError("Client doesn't support chat method")
 
             if content is None:
                 logger.warning("%s: Received empty response from LLM", self.agent_name)
