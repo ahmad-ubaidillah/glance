@@ -40,6 +40,7 @@ from glance.integrations.cost_tracker import (
     load_cost_tracker,
     save_cost_tracker,
 )
+from glance.integrations.team_rules import load_team_rules, format_rules_context
 from glance.llm.client import LLMClientAdapter, create_llm_client
 from glance.routing import create_router
 from glance.scanners.secret_scanner import SecretScanner
@@ -233,6 +234,7 @@ class GRReviewOrchestrator:
             review_history = load_history(repo_root)
             coverage_info = get_coverage_for_files(repo_root, pr_metadata.get("file_paths", []))
             memory = load_memory(repo_root)
+            team_rules = load_team_rules(repo_root)
 
             # Prepare context for agents
             ci_context_str = format_ci_context(ci_context) if ci_context else ""
@@ -242,6 +244,7 @@ class GRReviewOrchestrator:
             memory_context = format_memory_context(
                 memory, pr_author, pr_metadata.get("file_paths", [])
             )
+            rules_context = format_rules_context(team_rules)
 
             # Determine which agents to include based on routing decision
             from glance.routing import AgentType
