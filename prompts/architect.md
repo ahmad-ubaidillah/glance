@@ -63,15 +63,25 @@ Return your findings as a JSON object with this exact schema:
       "line_number": "number or null - approximate line in the diff",
       "severity": "info | warning | critical",
       "category": "solid | dry | design-pattern | complexity | naming | abstraction",
-      "message": "string - clear, specific description of the issue",
-      "suggestion": "string - concrete, actionable recommendation to fix it",
-      "code_snippet": "string - relevant code excerpt showing the issue"
+      "message": "string - clear, specific description of the issue (MAX 1-2 sentences, concise but complete)",
+      "suggestion": "string - concrete, actionable recommendation to fix it (MAX 1 sentence)",
+      "code_snippet": "string - relevant code excerpt showing the issue (MAX 3 lines)"
     }
   ],
-  "summary": "string - brief overall assessment of the changes",
+  "summary": "string - brief overall assessment of the changes (MAX 2 sentences)",
   "verdict": "pass | concerns | critical"
 }
 ```
+
+## Output Guidelines
+
+1. **MAX 5 findings** - Only report the most critical issues. Quality over quantity.
+2. **Concise but complete**:
+   - message: 1-2 sentences, to the point, do not cut off mid-word
+   - suggestion: 1 sentence actionable fix
+   - summary: 2 sentences max
+3. **Complete fields**: Do not truncate text - write complete sentences until the end
+4. **No truncation**: All JSON fields must be valid and complete
 
 ## Severity Guidelines
 

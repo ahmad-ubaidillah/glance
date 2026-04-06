@@ -466,7 +466,7 @@ class GRReviewOrchestrator:
         body += f"**Issue:** {finding.message}\n\n"
 
         if finding.code_snippet:
-            body += f"**Problematic Code:**\n```python\n{finding.code_snippet[:300]}\n```\n\n"
+            body += f"**Problematic Code:**\n```python\n{finding.code_snippet}\n```\n\n"
 
         if finding.suggestion:
             body += f"**Suggested Fix:**\n```python\n{finding.suggestion}\n```\n\n"
@@ -502,20 +502,23 @@ class GRReviewOrchestrator:
             body += f"| **Total** | **{total_findings}** |\n\n"
 
             if review.findings:
-                body += "### 🚨 Critical Issues (Must Fix)\n\n"
-                for f in review.findings:
-                    if f.severity == "critical":
-                        body += f"- **{f.file_path}:{f.line_number or '?'}** - {f.message[:100]}\n"
+                critical_findings = [f for f in review.findings if f.severity == "critical"]
+                warning_findings = [f for f in review.findings if f.severity == "warning"]
+
+                if critical_findings:
+                    body += "### 🚨 Critical Issues (Must Fix)\n\n"
+                    for i, f in enumerate(critical_findings, 1):
+                        body += f"{i}. **{f.file_path}:{f.line_number or '?'}** - {f.message}\n"
                         if f.suggestion:
-                            body += f"  > 💡 Fix: `{f.suggestion[:80]}`\n"
+                            body += f"   > 💡 Fix: `{f.suggestion}`\n"
                         body += "\n"
 
-                body += "### ⚠️ Warnings (Should Fix)\n\n"
-                for f in review.findings:
-                    if f.severity == "warning":
-                        body += f"- **{f.file_path}:{f.line_number or '?'}** - {f.message[:100]}\n"
+                if warning_findings:
+                    body += "### ⚠️ Warnings (Should Fix)\n\n"
+                    for i, f in enumerate(warning_findings, 1):
+                        body += f"{i}. **{f.file_path}:{f.line_number or '?'}** - {f.message}\n"
                         if f.suggestion:
-                            body += f"  > 💡 Fix: `{f.suggestion[:80]}`\n"
+                            body += f"   > 💡 Fix: `{f.suggestion}`\n"
                         body += "\n"
 
             body += f"---\n"
