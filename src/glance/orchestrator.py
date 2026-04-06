@@ -270,7 +270,7 @@ class GRReviewOrchestrator:
             context_data = {}
             if repo_map:
                 context_data["repo_signature_map"] = (
-                    repo_map.to_dict(repo_map) if hasattr(repo_map, "to_dict") else repo_map
+                    repo_map.to_dict() if hasattr(repo_map, "to_dict") else repo_map
                 )
             if ci_context:
                 context_data["ci_status"] = {
@@ -332,7 +332,7 @@ class GRReviewOrchestrator:
             context_data = {}
             if repo_map:
                 context_data["repo_signature_map"] = (
-                    repo_map.to_dict(repo_map) if hasattr(repo_map, "to_dict") else repo_map
+                    repo_map.to_dict() if hasattr(repo_map, "to_dict") else repo_map
                 )
             if ci_context:
                 context_data["ci_status"] = {
