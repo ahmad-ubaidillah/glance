@@ -421,9 +421,17 @@ class BaseAgent(ABC):
         Returns:
             AgentReview containing findings, summary, and verdict.
         """
-        user_prompt = self._build_user_prompt(diff_content, file_path, ci_context)
-        response, cached, tokens = await self._call_llm(user_prompt)
-        return self._parse_response(response, cached, tokens)
+        try:
+            user_prompt = self._build_user_prompt(diff_content, file_path, ci_context)
+            response, cached, tokens = await self._call_llm(user_prompt)
+            return self._parse_response(response, cached, tokens)
+        except Exception as e:
+            logger.error(f"{self.agent_name}: Error in review: {e}")
+            return AgentReview(
+                findings=[],
+                summary=f"Error: {str(e)[:100]}",
+                verdict="concerns",
+            )
 
     def _build_user_prompt(self, diff_content: str, file_path: str, ci_context: str) -> str:
         """Build the user prompt for the LLM with smart truncation.
