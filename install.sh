@@ -8,7 +8,21 @@
 #   wget -qO- https://raw.githubusercontent.com/ahmad-ubaidillah/glance/main/install.sh | bash
 #   OR
 #   git clone https://github.com/ahmad-ubaidillah/glance && cd glance && ./install.sh
+#
+# Installation Profiles:
+#   --basic  : Core review engine only (~10MB). No TUI, no RAG, no ML.
+#   --full   : Everything including RAG + ML features (~300MB+).
+#   (default): Standard install - core + TUI + memory (~15MB).
 # =============================================================================
+
+# Parse arguments
+INSTALL_PROFILE="standard"
+for arg in "$@"; do
+    case "$arg" in
+        --basic)  INSTALL_PROFILE="basic" ;;
+        --full)   INSTALL_PROFILE="full" ;;
+    esac
+done
 
 # Auto set execute permission if downloaded via curl/wget
 if [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ] || [ ! -t 0 ]; then
@@ -132,18 +146,28 @@ setup_venv() {
 
 # Install Glance
 install_glance() {
-    log_info "Installing Glance..."
+    log_info "Installing Glance ($INSTALL_PROFILE profile)..."
+    
+    # Determine install extras
+    EXTRAS=""
+    case "$INSTALL_PROFILE" in
+        basic)  log_info "Basic install - core review engine only" ;;
+        full)   EXTRAS="[rag,local]"
+                log_info "Full install - including RAG + ML features"
+                log_warn "This will download ~300MB of dependencies" ;;
+        *)      log_info "Standard install - core + TUI + memory" ;;
+    esac
     
     # Try uv first (faster, modern), fallback to pip
     if command -v uv &> /dev/null; then
-        uv pip install -e . --quiet
-        uv tool install -e . --quiet 2>/dev/null || true
+        uv pip install -e ".${EXTRAS}" --quiet
+        uv tool install -e ".${EXTRAS}" --quiet 2>/dev/null || true
         log_success "Glance installed via uv"
     elif command -v pip3 &> /dev/null; then
-        pip3 install -e . --quiet
+        pip3 install -e ".${EXTRAS}" --quiet
         log_success "Glance installed via pip3"
     elif $PYTHON_CMD -m pip --version &> /dev/null; then
-        $PYTHON_CMD -m pip install -e . --quiet
+        $PYTHON_CMD -m pip install -e ".${EXTRAS}" --quiet
         log_success "Glance installed via pip"
     else
         log_error "No pip found. Please install pip first."
@@ -196,6 +220,7 @@ main() {
     echo ""
     echo -e "${GREEN}╔═══════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║                    Installation Complete!                        ║${NC}"
+    echo -e "${GREEN}║                    Profile: $INSTALL_PROFILE                              ║${NC}"
     echo -e "${GREEN}╚═══════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo -e "${YELLOW}NEXT STEPS:${NC}"
@@ -205,12 +230,16 @@ main() {
     echo "   - GIT_TOKEN      : Your Git provider token (repo write)"
     echo ""
     echo "2. Open the interactive dashboard:"
-    echo "   source venv/bin/activate"
     echo "   glance dashboard"
     echo ""
     echo "3. Or use in your GitHub Actions:"
     echo "   See README.md for the workflow configuration"
     echo ""
+    if [ "$INSTALL_PROFILE" = "basic" ]; then
+        echo -e "${YELLOW}Note: Basic install - TUI dashboard and RAG features are not included.${NC}"
+        echo -e "${YELLOW}      Re-run install with --full to enable all features.${NC}"
+        echo ""
+    fi
     echo -e "${BLUE}For more info: https://github.com/ahmad-ubaidillah/glance${NC}"
     echo ""
 }
