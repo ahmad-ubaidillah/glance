@@ -303,29 +303,22 @@ class BaseAgent(ABC):
             user_prompt = TokenTracker.truncate_for_context(user_prompt, max_input, is_code=True)
 
         try:
-            # Make the API call - flexible to different client types
-            if hasattr(self.client, "chat_completions"):
-                # OpenAI-compatible client
-                response = await self.client.chat.completions.create(
-                    model=self.config.llm_model,  # Use unified field
-                    messages=[
-                        {"role": "system", "content": self.system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    temperature=self.config.temperature,
-                    max_tokens=self.config.max_tokens,
-                )
+            # Make the API call using LLMClientAdapter interface
+            # client.chat.completions.create() -> CompletionsAdapter.create()
+            response = await self.client.chat.completions.create(
+                model=self.config.llm_model,
+                messages=[
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=self.config.temperature,
+                max_tokens=self.config.max_tokens,
+            )
+            # Handle both dict response (from adapter) and object response
+            if isinstance(response, dict):
+                content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
+            else:
                 content = response.choices[0].message.content
-            elif hasattr(self.client, "chat"):
-                # Custom client with chat method
-                response = await self.client.chat(
-                    model=self.config.llm_model,
-                    messages=[
-                        {"role": "system", "content": self.system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    temperature=self.config.temperature,
-                    max_tokens=self.config.max_tokens,
                 )
                 content = response.content
             else:

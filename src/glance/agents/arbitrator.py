@@ -111,7 +111,11 @@ IMPORTANT RULES:
                 max_tokens=self.config.max_tokens,
             )
 
-            content = response.choices[0].message.content
+            content = (
+                response.choices[0].message.content
+                if not isinstance(response, dict)
+                else response.get("choices", [{}])[0].get("message", {}).get("content", "")
+            )
             if content is None:
                 return self._fallback_consolidation(
                     architect_review, bug_hunter_review, white_hat_review
