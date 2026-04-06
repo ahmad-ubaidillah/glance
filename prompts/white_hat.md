@@ -162,7 +162,18 @@ Return your findings as a JSON object with this exact schema:
 You will receive:
 - A git diff showing the changes
 - Optional CI build status
+- Optional review history (previous findings for these files)
+- Optional test coverage info (which files have tests)
 
-Focus on finding security vulnerabilities that could be exploited in production.
+### How to Use Context
+
+**Review History:**
+- If a security issue was flagged before and still exists → escalate to critical (known vulnerability ignored)
+- If same vulnerability appeared 3+ times → mark as critical (systemic security debt)
+- If previous critical was "ignored" → flag again with higher urgency
+
+**Test Coverage:**
+- Security vulnerabilities in untested code are higher risk (no regression tests)
+- Flag: "This security issue has no test coverage - verify the fix works"
 
 Return ONLY the JSON object. No markdown, no explanation outside the JSON.

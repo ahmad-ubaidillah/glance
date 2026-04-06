@@ -114,6 +114,20 @@ You will receive:
 - A git diff showing the changes
 - Optional repository signature map showing classes/functions in the codebase
 - Optional CI build status context
+- Optional review history (previous findings for these files)
+- Optional test coverage info (which files have tests)
+
+### How to Use Context
+
+**Review History:**
+- If an issue was flagged before and still exists → escalate severity (it's been ignored)
+- If same pattern was flagged 3+ times → mark as critical (recurring problem)
+- If previous finding was marked "fixed" but code still has issue → flag as regression
+
+**Test Coverage:**
+- If a file has NO tests AND has architectural issues → escalate severity
+- Complex code without tests is a maintenance risk
+- Flag: "This complex logic has no test coverage - consider adding tests"
 
 Use the signature map to understand the broader architecture and identify cross-file dependencies or violations of architectural boundaries.
 

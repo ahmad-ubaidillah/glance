@@ -106,6 +106,7 @@ You will receive:
 - Review results from The Bug Hunter (QA)
 - Review results from The White Hat (Security)
 - Optional diff summary
+- Optional context about review history and test coverage (already used by agents)
 
 Consolidate these into a single, coherent review.
 

@@ -152,6 +152,19 @@ Return your findings as a JSON object with this exact schema:
 You will receive:
 - A git diff showing the changes
 - Optional CI build status (test failures, lint errors)
+- Optional review history (previous findings for these files)
+- Optional test coverage info (which files have tests)
+
+### How to Use Context
+
+**Review History:**
+- If a bug was reported before and still exists → escalate to critical (it's a known bug that wasn't fixed)
+- If same bug pattern appeared 3+ times → mark as critical (systemic problem)
+
+**Test Coverage:**
+- If a file has NO tests → any bug you find is more dangerous (no safety net)
+- Flag untested code paths: "This logic has no test coverage - bugs here will slip through"
+- Prioritize findings in untested files over tested files
 
 Focus on finding bugs that existing tests might not catch.
 
