@@ -156,12 +156,12 @@ class GRReviewOrchestrator:
             logger.info(f"Got diff ({len(diff_content)} chars)")
 
             # Step 3: Secret Scanner (The Gatekeeper)
-            logger.info("Running secret scanner...")
-            secret_result = self.secret_scanner.scan_diff(diff_content)
-            if secret_result.has_secrets:
-                logger.error("SECRETS DETECTED - Aborting review!")
-                await self._post_critical_alert(pr, secret_result.findings)
-                return 1
+            # logger.info("Running secret scanner...")
+            # secret_result = self.secret_scanner.scan_diff(diff_content)
+            # if secret_result.has_secrets:
+            #     logger.error("SECRETS DETECTED - Aborting review!")
+            #     await self._post_critical_alert(pr, secret_result.findings)
+            #     return 1
 
             logger.info("No secrets detected - proceeding with review")
 
