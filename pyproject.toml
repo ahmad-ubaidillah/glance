@@ -31,7 +31,7 @@ local = [
 ]
 
 [project.scripts]
-glance = "glance.orchestrator:main"
+glance = "glance.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
