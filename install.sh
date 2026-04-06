@@ -134,16 +134,29 @@ setup_venv() {
 install_glance() {
     log_info "Installing Glance..."
     
-    # Activate venv
-    source venv/bin/activate
+    # Try uv first (faster, modern), fallback to pip
+    if command -v uv &> /dev/null; then
+        uv pip install -e . --quiet
+        uv tool install -e . --quiet 2>/dev/null || true
+        log_success "Glance installed via uv"
+    elif command -v pip3 &> /dev/null; then
+        pip3 install -e . --quiet
+        log_success "Glance installed via pip3"
+    elif $PYTHON_CMD -m pip --version &> /dev/null; then
+        $PYTHON_CMD -m pip install -e . --quiet
+        log_success "Glance installed via pip"
+    else
+        log_error "No pip found. Please install pip first."
+        exit 1
+    fi
     
-    # Upgrade pip
-    pip install --upgrade pip --quiet
-    
-    # Install glance
-    pip install -e . --quiet
-    
-    log_success "Glance installed successfully!"
+    # Verify installation
+    if command -v glance &> /dev/null; then
+        log_success "Glance CLI available globally! Run 'glance dashboard' from anywhere"
+    else
+        log_warn "Glance CLI not in PATH. You may need to run:"
+        log_warn "  export PATH=\$HOME/.local/bin:\$PATH"
+    fi
 }
 
 # Create .env if not exists
