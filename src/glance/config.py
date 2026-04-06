@@ -92,6 +92,23 @@ class GlanceConfig(BaseSettings):
         description="Path to the GitHub event JSON file (optional).",
     )
 
+    # -- Token Optimization Configuration --------------------------------------
+    enable_caching: bool = Field(
+        True,
+        alias="ENABLE_CACHING",
+        description="Enable prompt caching for repeated patterns.",
+    )
+    max_context_tokens: int = Field(
+        8000,
+        alias="MAX_CONTEXT_TOKENS",
+        description="Max tokens to send in context (input).",
+    )
+    smart_truncation: bool = Field(
+        True,
+        alias="SMART_TRUNCATION",
+        description="Enable smart truncation for large diffs.",
+    )
+
     # -- Linter Configuration ----------------------------------------------------
     linter_command: str = Field(
         "eslint",
