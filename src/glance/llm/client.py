@@ -425,15 +425,11 @@ class GoogleClient(BaseLLMClient):
 
 # Free models list for OpenRouter (verified working models)
 OPENROUTER_FREE_MODELS = [
-    "mistralai/mixtral-8x7b-instruct",
     "google/gemma-2-2b-it",
     "google/gemma-2-9b-it",
     "meta-llama/llama-3.1-8b-instruct",
     "meta-llama/llama-3.2-1b-instruct",
-    "microsoft/phi-3-mini-128k-instruct",
     "qwen/qwen-2-7b-instruct",
-    "anthropic/claude-3-haiku",
-    "deepseek/deepseek-chat",
 ]
 
 
@@ -483,17 +479,14 @@ class OpenRouterClient(BaseLLMClient):
                 )
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 429:
-                    # Rate limit - try next model
                     self.model_index += 1
                     if self.model_index >= len(OPENROUTER_FREE_MODELS):
                         raise ValueError("All free models exhausted. Please try again later.")
                     continue
                 elif e.response.status_code == 402:
-                    # Payment required - try next model
                     self.model_index += 1
                     continue
-                elif e.response.status_code == 400:
-                    # Bad request - model might not exist, try next
+                elif e.response.status_code in (400, 404):
                     self.model_index += 1
                     continue
                 else:
