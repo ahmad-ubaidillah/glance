@@ -127,10 +127,31 @@ install_glance() {
     fi
     
     if [ -x "$VENV_PYTHON" ]; then
+        # Upgrade pip in venv first
+        $VENV_PYTHON -m pip install --upgrade pip --quiet 2>/dev/null
+        
+        # Install glance in venv
         UV_SYSTEM_PYTHON=1 $VENV_PYTHON -m pip install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
-        $VENV_PYTHON -m glance.cli --help > /dev/null 2>&1 && \
-            log_success "Glance installed! Run: source venv/bin/activate && glance dashboard" || \
-            log_warn "Installation may have issues"
+        
+        # Also install globally so 'glance' works from anywhere
+        log_info "Making glance available globally..."
+        $VENV_PYTHON -m pip install --user "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet 2>/dev/null || \
+            $VENV_PYTHON -m pip install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet --target "$HOME/.local/lib/python3.14/site-packages" 2>/dev/null || true
+        
+        # Create global symlink/wrapper
+        if [ -d "$HOME/.local/bin" ]; then
+            cat > "$HOME/.local/bin/glance" << 'WRAPPER'
+#!/bin/bash
+exec "$HOME/Documents/webapp/venv/bin/python" -m glance.cli "$@"
+WRAPPER
+            chmod +x "$HOME/.local/bin/glance"
+        fi
+        
+        if command -v glance &> /dev/null || [ -x "$HOME/.local/bin/glance" ]; then
+            log_success "Glance installed! Run 'glance dashboard' from anywhere"
+        else
+            log_success "Glance installed! Run: source venv/bin/activate && glance dashboard"
+        fi
     else
         log_error "Virtual environment not found or broken"
         exit 1
