@@ -122,28 +122,32 @@ setup_venv() {
 install_glance() {
     log_info "Installing Glance..."
     
-    # Set VIRTUAL_ENV so uv/pip knows where to install
     if [ -d "venv" ]; then
-        export VIRTUAL_ENV="$(pwd)/venv"
-        export PATH="$VIRTUAL_ENV/bin:$PATH"
+        VENV_PYTHON="venv/bin/python"
+        VENV_PIP="venv/bin/pip"
     fi
     
-    if command -v uv &> /dev/null; then
-        uv pip install -e . --quiet
-        uv tool install -e . --quiet 2>/dev/null || true
+    # Install from PyPI (preferred) or fallback to git
+    if [ -x "$VENV_PIP" ]; then
+        $VENV_PIP install glance --quiet 2>/dev/null || \
+        $VENV_PIP install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
+    elif [ -x "$VENV_PYTHON" ]; then
+        $VENV_PYTHON -m pip install glance --quiet 2>/dev/null || \
+        $VENV_PYTHON -m pip install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
     elif command -v pip3 &> /dev/null; then
-        pip3 install -e . --quiet
+        pip3 install glance --quiet 2>/dev/null || \
+        pip3 install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
     elif $PYTHON_CMD -m pip --version &> /dev/null; then
-        $PYTHON_CMD -m pip install -e . --quiet
+        $PYTHON_CMD -m pip install glance --quiet 2>/dev/null || \
+        $PYTHON_CMD -m pip install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
     else
         log_error "No pip found."; exit 1
     fi
     
-    if command -v glance &> /dev/null; then
-        log_success "Glance CLI available globally! Run 'glance dashboard' from anywhere"
-    else
-        log_warn "Glance CLI not in PATH. You may need to run:"
-        log_warn "  export PATH=\$HOME/.local/bin:\$PATH"
+    if [ -x "$VENV_PYTHON" ]; then
+        $VENV_PYTHON -m glance.cli --help > /dev/null 2>&1 && \
+            log_success "Glance installed! Run: source venv/bin/activate && glance dashboard" || \
+            log_warn "Installation may have issues"
     fi
 }
 
