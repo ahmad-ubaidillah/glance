@@ -70,6 +70,7 @@ def cmd_uninstall(args):
 
 def cmd_conflict(args):
     import asyncio
+    import os
 
     from glance.conflict import ConflictAnalyzer, ConflictDetector, ConflictReporter
     from glance.llm.client import create_llm_client
@@ -86,15 +87,20 @@ def cmd_conflict(args):
         return
 
     total = sum(len(c.conflicts) for c in conflicts)
-    print(f"⚠️ Found {total} conflicts in {len(conflicts)} files")
+    print(f"⚠️ Found {total} conflicts in {len(conflicts)} files\n")
 
     if args.analyze and args.llm_key:
+        from dotenv import load_dotenv
+
+        load_dotenv(repo_root / ".env")
+        base_url = os.getenv("LLM_BASE_URL", "")
 
         async def analyze_and_report():
             client = create_llm_client(
                 provider="zhipuai",
                 api_key=args.llm_key,
-                model=args.model or "glm-4-flash",
+                model=args.model or os.getenv("LLM_MODEL", "glm-4-flash"),
+                base_url=base_url or None,
             )
             analyzer = ConflictAnalyzer(client)
             reporter = ConflictReporter()
@@ -114,7 +120,7 @@ def cmd_conflict(args):
                     analyses.append(analysis)
 
             report = reporter.generate_report(analyses, total)
-            print("\n" + report)
+            print(report)
 
         asyncio.run(analyze_and_report())
     else:
