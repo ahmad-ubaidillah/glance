@@ -123,35 +123,18 @@ install_glance() {
     log_info "Installing Glance..."
     
     if [ -d "venv" ]; then
-        VENV_PYTHON="venv/bin/python"
         VENV_PIP="venv/bin/pip"
-    fi
-    
-    # Install into temp dir to avoid uv checking current directory
-    TMPDIR=$(mktemp -d)
-    git clone --depth 1 https://github.com/ahmad-ubaidillah/glance.git "$TMPDIR/glance"
-    
-    cd "$TMPDIR/glance"
-    
-    if [ -d "$OLDPWD/venv" ]; then
-        VENV_PIP="$OLDPWD/venv/bin/pip"
-        VENV_PYTHON="$OLDPWD/venv/bin/python"
+        VENV_PYTHON="venv/bin/python"
     fi
     
     if [ -x "$VENV_PIP" ]; then
-        $VENV_PIP install -e . --quiet
+        $VENV_PIP install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
     elif [ -x "$VENV_PYTHON" ]; then
-        $VENV_PYTHON -m pip install -e . --quiet
-    elif command -v pip3 &> /dev/null; then
-        pip3 install -e . --quiet
-    elif $PYTHON_CMD -m pip --version &> /dev/null; then
-        $PYTHON_CMD -m pip install -e . --quiet
+        $VENV_PYTHON -m pip install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
     else
-        log_error "No pip found."; exit 1
+        log_error "Virtual environment not found or broken"
+        exit 1
     fi
-    
-    cd "$OLDPWD"
-    rm -rf "$TMPDIR"
     
     if [ -x "$VENV_PYTHON" ]; then
         $VENV_PYTHON -m glance.cli --help > /dev/null 2>&1 && \
