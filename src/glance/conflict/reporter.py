@@ -56,9 +56,7 @@ class ConflictReporter:
         }
         suggested = choice_label.get(analysis.suggested_choice, "our")
 
-        lines.append(
-            f"### [{analysis.conflict_id}/{len(analysis.conflicts) if hasattr(analysis, 'conflicts') else '?'}] {analysis.file_path}:{analysis.start_line}"
-        )
+        lines.append(f"### [{analysis.conflict_id}] {analysis.file_path}:{analysis.start_line}")
         lines.append("")
         lines.append("| Version | Content |")
         lines.append("|---------|---------|")

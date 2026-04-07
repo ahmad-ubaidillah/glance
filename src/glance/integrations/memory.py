@@ -188,6 +188,20 @@ def save_memory(repo_root: Path, memory: GlanceMemory) -> None:
 
     memory.last_updated = datetime.now().isoformat()
 
+    for dev in memory.developers.values():
+        if not dev.recurring_mistakes and dev.common_issue_types:
+            threshold = 3
+            dev.recurring_mistakes = [
+                cat for cat, count in dev.common_issue_types.items() if count >= threshold
+            ]
+
+        if not dev.strengths and dev.total_prs_reviewed >= 5:
+            total_issues = sum(dev.common_issue_types.values())
+            if total_issues == 0:
+                dev.strengths = ["Consistently clean code across multiple PRs"]
+            elif dev.avg_fix_quality >= 0.8:
+                dev.strengths = ["Quick to address review feedback effectively"]
+
     data = {
         "total_reviews": memory.total_reviews,
         "last_updated": memory.last_updated,

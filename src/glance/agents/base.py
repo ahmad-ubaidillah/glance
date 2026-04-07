@@ -25,11 +25,9 @@ try:
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
-
-# Always define these as Exception subclasses to avoid catching issues
-APIError = Exception
-RateLimitError = Exception
-Timeout = Exception
+    APIError = Exception
+    RateLimitError = Exception
+    Timeout = Exception
 
 
 class TokenTracker:
@@ -503,6 +501,36 @@ class BaseAgent(ABC):
                 tokens_used=tokens,
                 cached=cached,
             )
+
+    async def _parse_response_with_retry(
+        self,
+        user_prompt: str,
+        content: str,
+        cached: bool = False,
+        tokens: int = 0,
+    ) -> AgentReview:
+        """Parse LLM response with one retry on JSON failure.
+
+        If the initial response is malformed JSON, retry once with a
+        correction prompt asking for valid JSON output.
+        """
+        result = self._parse_response(content, cached, tokens)
+        if result.findings or result.verdict == "pass" or "Failed to parse" not in result.summary:
+            return result
+
+        logger.info("%s: Retrying with JSON correction prompt", self.agent_name)
+        retry_prompt = (
+            "Your previous response was not valid JSON. "
+            "Return your findings as a valid JSON object with this exact schema:\n"
+            '{"findings": [], "summary": "", "verdict": "pass|concerns|critical"}\n'
+            "Do not include any text outside the JSON."
+        )
+        try:
+            retry_content, _, retry_tokens = await self._call_llm(retry_prompt, use_cache=False)
+            return self._parse_response(retry_content, False, retry_tokens)
+        except Exception as e:
+            logger.warning("%s: JSON retry failed: %s", self.agent_name, e)
+            return result
 
     def _error_review(self, error_message: str) -> AgentReview:
         """Create a degraded AgentReview when an error occurs."""

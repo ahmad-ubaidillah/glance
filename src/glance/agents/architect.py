@@ -11,6 +11,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 from glance.agents.base import AgentReview, BaseAgent, Finding, GlanceConfig
+from glance.agents.prompt_loader import load_prompt
 
 if TYPE_CHECKING:
     from glance.llm.client import BaseLLMClient
@@ -37,6 +38,10 @@ class Architect(BaseAgent):
     @property
     def system_prompt(self) -> str:
         """Return the SWE-focused system prompt."""
+        return load_prompt("architect", fallback=self._fallback_prompt())
+
+    @staticmethod
+    def _fallback_prompt() -> str:
         return """You are The Architect, a senior software engineer specializing in code quality, \
 architecture, and design patterns. Your role is to review code changes (git diffs) \
 and identify architectural and design-level issues.

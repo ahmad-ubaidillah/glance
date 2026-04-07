@@ -14,6 +14,7 @@ logger = logging.getLogger("glance.conflict")
 
 class RiskLevel(Enum):
     CRITICAL = "critical"
+    MEDIUM = "medium"
     LOW = "low"
 
 
@@ -43,7 +44,7 @@ Consider:
 
 Respond with JSON only, no markdown:
 {
-    "risk_level": "critical" or "low",
+    "risk_level": "critical" or "medium" or "low",
     "suggested_choice": "our" or "their" or "hybrid",
     "reasoning": "brief explanation (1-2 sentences)",
     "hybrid_version": "if hybrid, provide the merged version"
@@ -73,18 +74,24 @@ class ConflictAnalyzer:
             response = await self._call_llm(prompt)
             result = json.loads(response)
 
+            raw_risk = result.get("risk_level", "low")
+            try:
+                risk_level = RiskLevel(raw_risk)
+            except ValueError:
+                risk_level = RiskLevel.MEDIUM if raw_risk in ("high", "medium") else RiskLevel.LOW
+
             return ConflictAnalysis(
                 conflict_id=conflict_id,
                 file_path=file_path,
                 start_line=start_line,
                 our_version=our_version,
                 their_version=their_version,
-                risk_level=RiskLevel(result.get("risk_level", "low")),
+                risk_level=risk_level,
                 suggested_choice=result.get("suggested_choice", "our"),
                 reasoning=result.get("reasoning", "No analysis provided"),
                 hybrid_version=result.get("hybrid_version"),
             )
-        except (json.JSONDecodeError, KeyError, asyncio.TimeoutError) as e:
+        except (json.JSONDecodeError, KeyError, asyncio.TimeoutError, ValueError) as e:
             logger.warning(f"LLM analysis failed: {e}, using default")
             return self._default_analysis(
                 conflict_id, file_path, start_line, our_version, their_version
@@ -217,7 +224,48 @@ def quick_classify(our_version: str, their_version: str) -> tuple[RiskLevel, str
     their_len = len(their_stripped)
     len_diff = abs(our_len - their_len) / max(our_len, their_len, 1)
 
-    if len_diff < 0.1 and len(our_stripped.splitlines()) == len(their_stripped.splitlines()):
+    logic_keywords = {
+        "if",
+        "else",
+        "elif",
+        "for",
+        "while",
+        "return",
+        "raise",
+        "async",
+        "await",
+        "try",
+        "except",
+        "finally",
+        "yield",
+        "break",
+        "continue",
+        "import",
+        "from",
+        "class",
+        "def",
+        "and",
+        "or",
+        "not",
+        "in",
+        "is",
+        "lambda",
+        "pass",
+        "with",
+    }
+
+    our_tokens = set(our_stripped.lower().split())
+    their_tokens = set(their_stripped.lower().split())
+    logic_changed = bool((our_tokens | their_tokens) & logic_keywords)
+
+    if (
+        len_diff < 0.1
+        and len(our_stripped.splitlines()) == len(their_stripped.splitlines())
+        and not logic_changed
+    ):
         return RiskLevel.LOW, "either", "Minor changes (whitespace, naming)"
+
+    if len_diff < 0.3 and our_stripped.splitlines()[:1] == their_stripped.splitlines()[:1]:
+        return RiskLevel.MEDIUM, "our", "Structural change with shared signature"
 
     return RiskLevel.CRITICAL, "unknown", "Significant logic differences"

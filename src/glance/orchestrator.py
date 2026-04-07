@@ -42,9 +42,17 @@ from glance.integrations.cost_tracker import (
 )
 from glance.integrations.team_rules import load_team_rules, format_rules_context
 from glance.llm.client import LLMClientAdapter, create_llm_client
+
+
+async def _noop() -> None:
+    return None
+
+
 from glance.routing import create_router
 from glance.scanners.secret_scanner import SecretScanner
 from glance.agents.base import AgentReview, Finding
+from glance.conflict import ConflictDetector, ConflictAnalyzer, ConflictReporter, ConflictResolver
+from glance.conflict.analyzer import RiskLevel
 
 logger = logging.getLogger("glance")
 
@@ -169,14 +177,19 @@ class GRReviewOrchestrator:
             logger.info(f"Got diff ({len(diff_content)} chars)")
 
             # Step 3: Secret Scanner (The Gatekeeper)
-            # logger.info("Running secret scanner...")
-            # secret_result = self.secret_scanner.scan_diff(diff_content)
-            # if secret_result.has_secrets:
-            #     logger.error("SECRETS DETECTED - Aborting review!")
-            #     await self._post_critical_alert(pr, secret_result.findings)
-            #     return 1
+            logger.info("Running secret scanner...")
+            secret_result = self.secret_scanner.scan_diff(diff_content)
+            if secret_result.has_secrets:
+                logger.error("SECRETS DETECTED - Aborting review!")
+                await self._post_critical_alert(pr, secret_result.findings)
+                return 1
 
             logger.info("No secrets detected - proceeding with review")
+
+            conflict_result = await self._check_merge_conflicts(pr, diff_content)
+            if conflict_result == "conflicts_found":
+                logger.info("Merge conflicts detected - posted report, skipping review")
+                return 0
 
             # Step 4: Fetch CI Status
             ci_context = None
@@ -372,6 +385,15 @@ class GRReviewOrchestrator:
             # Step 14: Save Cost Tracking
             try:
                 cost_tracker = load_cost_tracker(repo_root)
+
+                total_tokens = 0
+                for review in [architect_review, bug_hunter_review, white_hat_review, final_review]:
+                    if review and getattr(review, "tokens_used", None):
+                        total_tokens += review.tokens_used
+
+                input_tokens = int(total_tokens * 0.7)
+                output_tokens = total_tokens - input_tokens
+
                 cost_tracker.add_review(
                     TokenUsage(
                         review_id=f"pr-{pr.number}-{pr.head.sha[:8]}",
@@ -379,9 +401,9 @@ class GRReviewOrchestrator:
                         if hasattr(self.config.llm_provider, "value")
                         else self.config.llm_provider,
                         model=self.config.llm_model,
-                        input_tokens=0,
-                        output_tokens=0,
-                        total_tokens=0,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        total_tokens=total_tokens,
                         timestamp=datetime.now().isoformat(),
                         duration_seconds=0.0,
                     )
@@ -392,11 +414,62 @@ class GRReviewOrchestrator:
                 logger.warning(f"Failed to save cost tracking: {e}")
 
             logger.info("GR-Review completed successfully")
+            await self._close_clients()
             return 0
 
         except Exception as e:
             logger.exception(f"GR-Review failed: {e}")
+            await self._close_clients()
             return 1
+
+    async def _close_clients(self) -> None:
+        if hasattr(self.raw_client, "close"):
+            try:
+                await self.raw_client.close()
+            except Exception as e:
+                logger.warning(f"Failed to close LLM client: {e}")
+
+    async def _check_merge_conflicts(self, pr, diff_content: str) -> str | None:
+        """Check for merge conflicts in the PR diff.
+
+        Returns 'conflicts_found' if conflicts detected and report posted,
+        None otherwise.
+        """
+        detector = ConflictDetector()
+        conflicts = detector.scan_diff(diff_content)
+
+        if not conflicts:
+            return None
+
+        logger.info(f"Found {len(conflicts)} merge conflict(s) in PR #{pr.number}")
+
+        analyzer = ConflictAnalyzer(self.raw_client, self.config.llm_model)
+        analyses = []
+        for conflict in conflicts:
+            for region in conflict.conflicts:
+                analysis = await analyzer.analyze_conflict(
+                    file_path=conflict.path,
+                    start_line=region.start_line,
+                    our_version=region.our_content,
+                    their_version=region.their_content,
+                )
+                analyses.append(analysis)
+
+        reporter = ConflictReporter()
+        report = reporter.generate_report(analyses, len(conflicts))
+        summary = reporter.generate_summary(analyses)
+
+        await self._post_conflict_report(pr, report, summary)
+        return "conflicts_found"
+
+    async def _post_conflict_report(self, pr, report: str, summary: str) -> None:
+        """Post merge conflict report as a PR comment."""
+        try:
+            body = f"{summary}\n\n---\n\n{report}"
+            pr.create_issue_comment(body)
+            logger.info("Posted merge conflict report to PR")
+        except Exception as e:
+            logger.error(f"Failed to post conflict report: {e}")
 
     async def _run_parallel_agents(
         self,
@@ -450,31 +523,34 @@ class GRReviewOrchestrator:
                 )
             )
         else:
-            tasks.append(asyncio.coroutine(lambda: None)())
+            tasks.append(_noop())
 
         if run_bug_hunter:
             tasks.append(
                 self.bug_hunter.review(
                     diff_content=diff_content,
                     file_path="",
-                    ci_context=ci_context_str,
+                    ci_context=architect_ci_context,
                 )
             )
         else:
-            tasks.append(asyncio.coroutine(lambda: None)())
+            tasks.append(_noop())
 
         if run_white_hat:
             tasks.append(
                 self.white_hat.review(
                     diff_content=diff_content,
                     file_path="",
-                    ci_context=ci_context_str,
+                    ci_context=architect_ci_context,
                 )
             )
         else:
-            tasks.append(asyncio.coroutine(lambda: None)())
+            tasks.append(_noop())
 
-        results: list[Any] = await asyncio.gather(*tasks, return_exceptions=True)
+        results: list[Any] = await asyncio.wait_for(
+            asyncio.gather(*tasks, return_exceptions=True),
+            timeout=self.config.timeout or 300,
+        )
 
         architect_review = (
             results[0] if run_architect and not isinstance(results[0], Exception) else None
@@ -535,26 +611,35 @@ class GRReviewOrchestrator:
 
         if run_architect:
             logger.info("Running Architect (SWE) review...")
-            architect_review = await self.architect.review(
-                diff_content=diff_content,
-                file_path="",
-                ci_context=architect_ci_context,
+            architect_review = await asyncio.wait_for(
+                self.architect.review(
+                    diff_content=diff_content,
+                    file_path="",
+                    ci_context=architect_ci_context,
+                ),
+                timeout=(self.config.timeout or 300) // 3,
             )
 
         if run_bug_hunter:
             logger.info("Running Bug Hunter (QA) review...")
-            bug_hunter_review = await self.bug_hunter.review(
-                diff_content=diff_content,
-                file_path="",
-                ci_context=ci_context_str,
+            bug_hunter_review = await asyncio.wait_for(
+                self.bug_hunter.review(
+                    diff_content=diff_content,
+                    file_path="",
+                    ci_context=architect_ci_context,
+                ),
+                timeout=(self.config.timeout or 300) // 3,
             )
 
         if run_white_hat:
             logger.info("Running White Hat (Security) review...")
-            white_hat_review = await self.white_hat.review(
-                diff_content=diff_content,
-                file_path="",
-                ci_context=ci_context_str,
+            white_hat_review = await asyncio.wait_for(
+                self.white_hat.review(
+                    diff_content=diff_content,
+                    file_path="",
+                    ci_context=architect_ci_context,
+                ),
+                timeout=(self.config.timeout or 300) // 3,
             )
 
         return architect_review, bug_hunter_review, white_hat_review

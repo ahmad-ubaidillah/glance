@@ -6,6 +6,7 @@ Focuses on OWASP Top 10, injection attacks, hardcoded secrets, and memory safety
 from __future__ import annotations
 
 from glance.agents.base import AgentReview, BaseAgent, GlanceConfig
+from glance.agents.prompt_loader import load_prompt
 
 
 class WhiteHatAgent(BaseAgent):
@@ -29,6 +30,10 @@ class WhiteHatAgent(BaseAgent):
     @property
     def system_prompt(self) -> str:
         """Return the security-focused system prompt."""
+        return load_prompt("white_hat", fallback=self._fallback_prompt())
+
+    @staticmethod
+    def _fallback_prompt() -> str:
         return """You are The White Hat, a senior security researcher specializing in code security analysis.
 
 YOUR FOCUS AREAS:

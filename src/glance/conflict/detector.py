@@ -33,6 +33,71 @@ class ConflictDetector:
         self.repo_root = Path(repo_root)
 
     def find_conflicted_files(self) -> list[str]:
+        files = self._find_via_git()
+        if files is not None:
+            return files
+        return self._find_via_scan()
+
+    def _find_via_git(self) -> list[str] | None:
+        try:
+            import subprocess
+
+            result = subprocess.run(
+                ["git", "diff", "--check"],
+                cwd=self.repo_root,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode != 0 and result.stderr:
+                conflicted = set()
+                for line in result.stderr.splitlines():
+                    if ":" in line:
+                        parts = line.split(":", 1)
+                        conflicted.add(parts[0].strip())
+                    elif "conflict" in line.lower():
+                        for token in line.split():
+                            if token.endswith(
+                                (
+                                    ".py",
+                                    ".js",
+                                    ".ts",
+                                    ".tsx",
+                                    ".jsx",
+                                    ".go",
+                                    ".rs",
+                                    ".rb",
+                                    ".java",
+                                    ".md",
+                                    ".json",
+                                    ".yaml",
+                                    ".yml",
+                                    ".toml",
+                                    ".cfg",
+                                    ".ini",
+                                    ".sh",
+                                    ".css",
+                                    ".html",
+                                )
+                            ):
+                                conflicted.add(token.strip("():"))
+                return sorted(conflicted) if conflicted else None
+
+            result2 = subprocess.run(
+                ["git", "grep", "-l", "<<<<<<<", "--", "."],
+                cwd=self.repo_root,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result2.returncode == 0 and result2.stdout.strip():
+                return sorted(result2.stdout.strip().splitlines())
+
+            return []
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            return None
+
+    def _find_via_scan(self) -> list[str]:
         files = []
         for path in self.repo_root.rglob("*"):
             if path.is_file() and not self._is_ignored(path):

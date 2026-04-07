@@ -77,6 +77,11 @@ class GlanceConfig(BaseSettings):
         alias="EXECUTION_MODE",
         description="Execution mode: 'parallel' runs all agents simultaneously, 'sequential' runs one by one.",
     )
+    timeout: int | None = Field(
+        None,
+        alias="TIMEOUT",
+        description="Timeout in seconds for agent execution. Defaults to 300 (5 minutes).",
+    )
 
     # -- Routing Mode ------------------------------------------------------------
     routing_mode: RoutingMode = Field(
@@ -336,5 +341,12 @@ def load_config() -> GlanceConfig:
                 f"Set these as environment variables or in a .env file."
             ) from exc
         raise ValueError(f"Configuration validation failed: {exc}") from exc
+
+    llm_config = config.get_llm_config()
+    if not llm_config["api_key"]:
+        raise ValueError(
+            f"No API key found for provider '{config.llm_provider.value}'. "
+            f"Set LLM_API_KEY or {config.llm_provider.value.upper()}_API_KEY."
+        )
 
     return config

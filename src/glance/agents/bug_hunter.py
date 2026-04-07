@@ -6,6 +6,7 @@ Focuses on edge cases, boundary values, error handling, and business logic bugs.
 from __future__ import annotations
 
 from glance.agents.base import AgentReview, BaseAgent, GlanceConfig
+from glance.agents.prompt_loader import load_prompt
 
 
 class BugHunterAgent(BaseAgent):
@@ -29,6 +30,10 @@ class BugHunterAgent(BaseAgent):
     @property
     def system_prompt(self) -> str:
         """Return the QA-focused system prompt."""
+        return load_prompt("bug_hunter", fallback=self._fallback_prompt())
+
+    @staticmethod
+    def _fallback_prompt() -> str:
         return """You are The Bug Hunter, a senior QA engineer specializing in finding bugs, edge cases, and logic errors.
 
 YOUR FOCUS AREAS:

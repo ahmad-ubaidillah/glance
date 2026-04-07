@@ -9,11 +9,24 @@ When a developer pushes new commits after Glance's review:
 
 from __future__ import annotations
 
+import hashlib
+
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
 logger = logging.getLogger("glance.response")
+
+
+def _stable_issue_id(file_path: str, message: str, category: str) -> str:
+    """Generate a stable issue ID based on content, not line numbers.
+
+    Line numbers shift between commits, and LLMs may rephrase messages.
+    Using a hash of file_path + first 3 words + category gives us stable identity.
+    """
+    first_words = " ".join(message.split()[:3])
+    raw = f"{file_path}:{first_words}:{category}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
 @dataclass
@@ -44,7 +57,7 @@ class PRResponseTracker:
         """Record new issues to track."""
         new_ids = []
         for f in findings:
-            issue_id = f"{f.file_path}:{f.line_number}:{f.message[:50]}"
+            issue_id = _stable_issue_id(f.file_path, f.message, f.category)
             if issue_id not in self.tracked_issues:
                 self.tracked_issues[issue_id] = TrackedIssue(
                     issue_id=issue_id,
@@ -65,7 +78,7 @@ class PRResponseTracker:
 
         current_issues = set()
         for f in findings:
-            issue_id = f"{f.file_path}:{f.line_number}:{f.message[:50]}"
+            issue_id = _stable_issue_id(f.file_path, f.message, f.category)
             current_issues.add(issue_id)
 
         for issue_id, issue in self.tracked_issues.items():
@@ -83,7 +96,7 @@ class PRResponseTracker:
 
         # Find new issues
         for f in findings:
-            issue_id = f"{f.file_path}:{f.line_number}:{f.message[:50]}"
+            issue_id = _stable_issue_id(f.file_path, f.message, f.category)
             if issue_id not in self.tracked_issues:
                 result["new"].append(f)
 

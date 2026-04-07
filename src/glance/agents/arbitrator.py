@@ -10,6 +10,7 @@ import logging
 from typing import Any
 
 from glance.agents.base import AgentReview, BaseAgent, Finding, GlanceConfig
+from glance.agents.prompt_loader import load_prompt
 
 logger = logging.getLogger("glance.arbitrator")
 
@@ -32,6 +33,10 @@ class ArbitratorAgent(BaseAgent):
     @property
     def system_prompt(self) -> str:
         """Return the arbitrator system prompt."""
+        return load_prompt("arbitrator", fallback=self._fallback_prompt())
+
+    @staticmethod
+    def _fallback_prompt() -> str:
         return """You are The Arbitrator, a senior lead developer who consolidates code review findings.
 
 YOUR ROLE:
@@ -49,9 +54,9 @@ FILTERING GUIDELINES:
 - Keep findings that multiple agents agree on
 
 VERDICT RULES:
-- APPROVE: No significant issues, or only minor improvements suggested
-- REQUEST_CHANGES: Issues found that should be addressed before merge
-- BLOCK_SECURITY: Critical security vulnerability found (secrets, exploits)
+- pass: No significant issues, or only minor improvements suggested
+- concerns: Issues found that should be addressed before merge
+- critical: Critical security vulnerability found (secrets, exploits)
 
 OUTPUT FORMAT (JSON):
 {

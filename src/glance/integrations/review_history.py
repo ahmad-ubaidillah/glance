@@ -88,6 +88,20 @@ def save_history(
     history_dir.mkdir(parents=True, exist_ok=True)
     history_file = history_dir / "history.json"
 
+    current_files = {getattr(f, "file_path", "") for f in new_findings}
+    current_messages = {getattr(f, "message", "").lower() for f in new_findings}
+
+    for past in history.findings:
+        if past.status != "open":
+            continue
+        if past.file_path not in current_files:
+            past.status = "fixed"
+            continue
+        first_words = " ".join(past.message.lower().split()[:3])
+        if any(first_words in msg for msg in current_messages):
+            continue
+        past.status = "fixed"
+
     # Add new findings to history
     for finding in new_findings:
         history.findings.append(
