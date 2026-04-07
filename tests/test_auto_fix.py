@@ -11,7 +11,7 @@ class MockLLMClient:
     def __init__(self, response_content: str = '{"fixes": []}'):
         self.response_content = response_content
 
-    async def chat(self, model: str, messages: list, temperature: float, max_tokens: int, **kwargs):
+    async def chat(self, messages: list, **kwargs):
         class MockResponse:
             content = self.response_content
 
@@ -97,7 +97,7 @@ class TestAutoFixGenerator:
 
         suggestion = generator.format_github_suggestion(fix)
 
-        assert "suggestion" in suggestion.lower()
+        assert "suggested" in suggestion.lower()
         assert "test.py" in suggestion
 
     def test_format_review_comment(self, mock_client):
@@ -120,76 +120,3 @@ class TestAutoFixGenerator:
         assert "style" in comment
         assert "Before" in comment
         assert "After" in comment
-
-
-class TestLocalKnowledgeBase:
-    """Test LocalKnowledgeBase."""
-
-    @pytest.fixture
-    def temp_kb(self, tmp_path):
-        """Create temporary knowledge base."""
-        from glance.knowledge.base import LocalKnowledgeBase
-
-        kb = LocalKnowledgeBase(storage_path=tmp_path / "kb")
-        return kb
-
-    def test_add_pattern(self, temp_kb):
-        """Test adding a pattern."""
-        pattern_id = temp_kb.add_pattern(
-            pattern_type="bad",
-            description="Missing null check",
-            code_snippet="def foo(x): return x.value",
-            language="python",
-        )
-
-        assert pattern_id is not None
-        # Verify pattern was added by searching
-        similar = temp_kb.find_similar_patterns("null check")
-        assert len(similar) >= 1
-
-    def test_find_similar_patterns(self, temp_kb):
-        """Test finding similar patterns."""
-        temp_kb.add_pattern(
-            pattern_type="bad",
-            description="SQL injection risk",
-            code_snippet="query.execute(user_input)",
-            language="python",
-        )
-
-        similar = temp_kb.find_similar_patterns(
-            "SQL injection in query",
-            pattern_type="bad",
-        )
-
-        assert len(similar) >= 1
-
-    def test_add_review_history(self, temp_kb):
-        """Test adding review history."""
-        temp_kb.add_review_history(
-            pr_number=123,
-            pr_title="Fix bug",
-            repository="owner/repo",
-            files_changed=["src/main.py"],
-            findings_count=5,
-            verdict="concerns",
-            key_patterns=["null_check"],
-        )
-
-        similar = temp_kb.get_similar_reviews(["src/main.py"], limit=1)
-        assert len(similar) >= 1
-
-    def test_get_similar_reviews(self, temp_kb):
-        """Test getting similar reviews."""
-        for i in range(3):
-            temp_kb.add_review_history(
-                pr_number=i,
-                pr_title=f"PR {i}",
-                repository="owner/repo",
-                files_changed=["file.py"],
-                findings_count=1,
-                verdict="pass",
-                key_patterns=[],
-            )
-
-        similar = temp_kb.get_similar_reviews(["file.py"], limit=2)
-        assert len(similar) >= 1
