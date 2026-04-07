@@ -133,23 +133,12 @@ install_glance() {
         # Install glance in venv
         UV_SYSTEM_PYTHON=1 $VENV_PYTHON -m pip install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
         
-        # Also install globally so 'glance' works from anywhere
-        log_info "Making glance available globally..."
-        $VENV_PYTHON -m pip install --user "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet 2>/dev/null || \
-            $VENV_PYTHON -m pip install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet --target "$HOME/.local/lib/python3.14/site-packages" 2>/dev/null || true
-        
         # Create global wrapper script
-        VENV_PYTHON_ABS="$(cd "$(dirname "$VENV_PYTHON")" && pwd)/$(basename "$VENV_PYTHON")"
-        if [ -d "$HOME/.local/bin" ]; then
+        VENV_PYTHON_ABS="$(cd "$(dirname "$VENV_PYTHON")" 2>/dev/null && pwd)/$(basename "$VENV_PYTHON")"
+        if [ -d "$HOME/.local/bin" ] && [ -n "$VENV_PYTHON_ABS" ]; then
             mkdir -p "$HOME/.local/bin"
-            cat > "$HOME/.local/bin/glance" << WRAPPER
-#!/bin/bash
-exec "$VENV_PYTHON_ABS" -m glance.cli "\$@"
-WRAPPER
+            printf '#!/bin/bash\nexec "%s" -m glance.cli "$@"\n' "$VENV_PYTHON_ABS" > "$HOME/.local/bin/glance"
             chmod +x "$HOME/.local/bin/glance"
-        fi
-        
-        if command -v glance &> /dev/null || [ -x "$HOME/.local/bin/glance" ]; then
             log_success "Glance installed! Run 'glance dashboard' from anywhere"
         else
             log_success "Glance installed! Run: source venv/bin/activate && glance dashboard"
