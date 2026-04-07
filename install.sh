@@ -122,9 +122,10 @@ setup_venv() {
 install_glance() {
     log_info "Installing Glance..."
     
-    # Activate venv so uv/pip knows where to install
+    # Set VIRTUAL_ENV so uv/pip knows where to install
     if [ -d "venv" ]; then
-        source venv/bin/activate
+        export VIRTUAL_ENV="$(pwd)/venv"
+        export PATH="$VIRTUAL_ENV/bin:$PATH"
     fi
     
     if command -v uv &> /dev/null; then
