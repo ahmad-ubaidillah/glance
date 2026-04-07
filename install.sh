@@ -122,6 +122,11 @@ setup_venv() {
 install_glance() {
     log_info "Installing Glance..."
     
+    # Activate venv so uv/pip knows where to install
+    if [ -d "venv" ]; then
+        source venv/bin/activate
+    fi
+    
     if command -v uv &> /dev/null; then
         uv pip install -e . --quiet
         uv tool install -e . --quiet 2>/dev/null || true
