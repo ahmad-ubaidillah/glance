@@ -398,6 +398,48 @@ def settings_menu(stdscr):
         screens[sel](stdscr)
 
 
+def uninstall_screen(stdscr):
+    h, w = stdscr.getmaxyx()
+    y1 = max(1, (h - 10) // 2)
+    x1 = max(1, (w - 50) // 2)
+    y2 = y1 + 9
+    x2 = x1 + 50
+
+    stdscr.erase()
+    draw_box(stdscr, y1, x1, y2, x2, 1)
+    draw_text(stdscr, y1, x1 + 2, " 🗑️  Uninstall Glance ", 2, True)
+    draw_text(stdscr, y1 + 2, x1 + 2, "This will remove:", 0)
+    draw_text(stdscr, y1 + 3, x1 + 4, "• Virtual environment (venv)", 0)
+    draw_text(stdscr, y1 + 4, x1 + 4, "• Global glance wrapper", 0)
+    draw_text(stdscr, y1 + 5, x1 + 4, "• .glance data (optional)", 0)
+    draw_text(stdscr, y1 + 6, x1 + 4, "• .env file (optional)", 0)
+    draw_text(stdscr, y1 + 8, x1 + 2, " Proceed? (y/n) ", 3, True)
+    stdscr.refresh()
+
+    key = stdscr.getch()
+    if key in (ord("y"), ord("Y")):
+        import shutil
+
+        removed = []
+        for d in ["venv", ".venv"]:
+            if (repo_root / d).exists():
+                shutil.rmtree(repo_root / d)
+                removed.append(d)
+        wrapper = Path.home() / ".local" / "bin" / "glance"
+        if wrapper.exists():
+            wrapper.unlink()
+            removed.append("wrapper")
+        if (repo_root / ".glance").exists():
+            shutil.rmtree(repo_root / ".glance")
+            removed.append(".glance")
+        if (repo_root / ".env").exists():
+            (repo_root / ".env").unlink()
+            removed.append(".env")
+
+        lines = [f"Removed: {', '.join(removed)}", "", "Glance uninstalled successfully!"]
+        show_page(stdscr, "✅ Uninstalled", lines)
+
+
 def main(stdscr):
     curses.curs_set(0)
     curses.start_color()
@@ -414,6 +456,7 @@ def main(stdscr):
         "⚙️  Settings",
         "📖 Tutorial & Setup Guide",
         "🚀 Run Review",
+        "🗑️  Uninstall Glance",
         "❌ Exit",
     ]
     screens = [
@@ -423,6 +466,7 @@ def main(stdscr):
         settings_menu,
         tutorial_screen,
         run_review_screen,
+        uninstall_screen,
         None,
     ]
     sel = 0
