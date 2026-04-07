@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # Glance Basic Installer - Core review engine only (~10MB)
-# No TUI dashboard, no RAG, no ML features
+# No TUI dashboard, no memory features
 # =============================================================================
 # Usage:
 #   curl -sSL https://raw.githubusercontent.com/ahmad-ubaidillah/glance/main/install-basic.sh | bash
@@ -67,7 +67,7 @@ main() {
     echo -e "${BLUE}"
     echo "╔═══════════════════════════════════════════════════════════════════╗"
     echo "║              Glance Basic Installer v1.0                          ║"
-    echo "║         Core Review Engine Only (No TUI, No RAG)                  ║"
+    echo "║         Core Review Engine Only (No TUI)                            ║"
     echo "╚═══════════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
     
@@ -88,10 +88,10 @@ main() {
     echo "  ✅ Adaptive routing"
     echo "  ✅ Inline comments + auto-fix"
     echo "  ❌ No TUI dashboard"
-    echo "  ❌ No RAG/ML features"
+    echo "  ❌ No memory/learning system"
     echo ""
-    echo -e "${YELLOW}To upgrade to full version:${NC}"
-    echo "  curl -sSL https://raw.githubusercontent.com/ahmad-ubaidillah/glance/main/install-full.sh | bash"
+    echo -e "${YELLOW}To upgrade to standard version:${NC}"
+    echo "  curl -sSL https://raw.githubusercontent.com/ahmad-ubaidillah/glance/main/install.sh | bash"
     echo ""
 }
 
