@@ -123,23 +123,17 @@ install_glance() {
     log_info "Installing Glance..."
     
     if [ -d "venv" ]; then
-        VENV_PIP="venv/bin/pip"
         VENV_PYTHON="venv/bin/python"
     fi
     
-    if [ -x "$VENV_PIP" ]; then
-        $VENV_PIP install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
-    elif [ -x "$VENV_PYTHON" ]; then
-        $VENV_PYTHON -m pip install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
-    else
-        log_error "Virtual environment not found or broken"
-        exit 1
-    fi
-    
     if [ -x "$VENV_PYTHON" ]; then
+        $VENV_PYTHON -m pip install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
         $VENV_PYTHON -m glance.cli --help > /dev/null 2>&1 && \
             log_success "Glance installed! Run: source venv/bin/activate && glance dashboard" || \
             log_warn "Installation may have issues"
+    else
+        log_error "Virtual environment not found or broken"
+        exit 1
     fi
 }
 
