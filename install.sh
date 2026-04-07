@@ -138,11 +138,13 @@ install_glance() {
         $VENV_PYTHON -m pip install --user "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet 2>/dev/null || \
             $VENV_PYTHON -m pip install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet --target "$HOME/.local/lib/python3.14/site-packages" 2>/dev/null || true
         
-        # Create global symlink/wrapper
+        # Create global wrapper script
+        VENV_PYTHON_ABS="$(cd "$(dirname "$VENV_PYTHON")" && pwd)/$(basename "$VENV_PYTHON")"
         if [ -d "$HOME/.local/bin" ]; then
-            cat > "$HOME/.local/bin/glance" << 'WRAPPER'
+            mkdir -p "$HOME/.local/bin"
+            cat > "$HOME/.local/bin/glance" << WRAPPER
 #!/bin/bash
-exec "$HOME/Documents/webapp/venv/bin/python" -m glance.cli "$@"
+exec "$VENV_PYTHON_ABS" -m glance.cli "\$@"
 WRAPPER
             chmod +x "$HOME/.local/bin/glance"
         fi
