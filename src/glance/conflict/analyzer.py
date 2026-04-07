@@ -119,21 +119,36 @@ THEIR VERSION (incoming branch):
 
 Return JSON analysis."""
 
-    async def _call_llm(self, prompt: str) -> str:
+    async def _call_llm(self, prompt: str, retries: int = 3) -> str:
+        import asyncio
+        import httpx
+
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
         ]
 
-        if hasattr(self.llm_client, "chat"):
-            response = await self.llm_client.chat(
-                messages=messages,
-                temperature=0.3,
-                max_tokens=500,
-            )
-            return response.content
+        for attempt in range(retries):
+            try:
+                if hasattr(self.llm_client, "chat"):
+                    response = await self.llm_client.chat(
+                        messages=messages,
+                        temperature=0.3,
+                        max_tokens=500,
+                    )
+                    return response.content
 
-        raise ValueError("LLM client must have chat() method")
+                raise ValueError("LLM client must have chat() method")
+
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429 and attempt < retries - 1:
+                    wait_time = (2**attempt) * 5
+                    logger.warning(f"Rate limited, waiting {wait_time}s...")
+                    await asyncio.sleep(wait_time)
+                    continue
+                raise
+
+        raise ValueError("Max retries exceeded")
 
     def _default_analysis(
         self,
