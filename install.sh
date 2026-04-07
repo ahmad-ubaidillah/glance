@@ -127,22 +127,31 @@ install_glance() {
         VENV_PIP="venv/bin/pip"
     fi
     
-    # Install from PyPI (preferred) or fallback to git
+    # Install into temp dir to avoid uv checking current directory
+    TMPDIR=$(mktemp -d)
+    git clone --depth 1 https://github.com/ahmad-ubaidillah/glance.git "$TMPDIR/glance"
+    
+    cd "$TMPDIR/glance"
+    
+    if [ -d "$OLDPWD/venv" ]; then
+        VENV_PIP="$OLDPWD/venv/bin/pip"
+        VENV_PYTHON="$OLDPWD/venv/bin/python"
+    fi
+    
     if [ -x "$VENV_PIP" ]; then
-        $VENV_PIP install glance --quiet 2>/dev/null || \
-        $VENV_PIP install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
+        $VENV_PIP install -e . --quiet
     elif [ -x "$VENV_PYTHON" ]; then
-        $VENV_PYTHON -m pip install glance --quiet 2>/dev/null || \
-        $VENV_PYTHON -m pip install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
+        $VENV_PYTHON -m pip install -e . --quiet
     elif command -v pip3 &> /dev/null; then
-        pip3 install glance --quiet 2>/dev/null || \
-        pip3 install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
+        pip3 install -e . --quiet
     elif $PYTHON_CMD -m pip --version &> /dev/null; then
-        $PYTHON_CMD -m pip install glance --quiet 2>/dev/null || \
-        $PYTHON_CMD -m pip install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
+        $PYTHON_CMD -m pip install -e . --quiet
     else
         log_error "No pip found."; exit 1
     fi
+    
+    cd "$OLDPWD"
+    rm -rf "$TMPDIR"
     
     if [ -x "$VENV_PYTHON" ]; then
         $VENV_PYTHON -m glance.cli --help > /dev/null 2>&1 && \
