@@ -42,6 +42,16 @@ class ConflictDetector:
         try:
             import subprocess
 
+            is_git = subprocess.run(
+                ["git", "rev-parse", "--is-inside-work-tree"],
+                cwd=self.repo_root,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if is_git.returncode != 0:
+                return None
+
             result = subprocess.run(
                 ["git", "diff", "--check"],
                 cwd=self.repo_root,

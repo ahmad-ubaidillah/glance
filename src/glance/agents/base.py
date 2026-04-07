@@ -20,14 +20,14 @@ logger = logging.getLogger("glance.agents")
 
 # Try to import openai, but make it optional for flexibility
 try:
-    from openai import APIError, RateLimitError, Timeout
+    from openai import APIError, APITimeoutError, RateLimitError
 
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
     APIError = Exception
     RateLimitError = Exception
-    Timeout = Exception
+    APITimeoutError = Exception
 
 
 class TokenTracker:
@@ -351,7 +351,7 @@ class BaseAgent(ABC):
                 0,
             )
 
-        except Timeout as e:
+        except APITimeoutError as e:
             logger.error("%s: Request timed out: %s", self.agent_name, str(e))
             return (
                 json.dumps(
