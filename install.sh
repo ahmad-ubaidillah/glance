@@ -127,7 +127,7 @@ install_glance() {
     fi
     
     if [ -x "$VENV_PYTHON" ]; then
-        $VENV_PYTHON -m pip install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
+        UV_SYSTEM_PYTHON=1 $VENV_PYTHON -m pip install "git+https://github.com/ahmad-ubaidillah/glance.git" --quiet
         $VENV_PYTHON -m glance.cli --help > /dev/null 2>&1 && \
             log_success "Glance installed! Run: source venv/bin/activate && glance dashboard" || \
             log_warn "Installation may have issues"
