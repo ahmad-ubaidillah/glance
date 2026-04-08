@@ -312,8 +312,8 @@ class GlanceConfig(BaseSettings):
 def load_config() -> GlanceConfig:
     """Load and validate the GR-Review configuration.
 
-    Loads environment variables from a ``.env`` file (if present) and then
-    instantiates :class:`GlanceConfig`, which validates all required fields.
+    Loads environment variables from environment and optionally from a .env file.
+    Environment variables take precedence over .env file values.
 
     Returns:
         A fully validated ``GlanceConfig`` instance.
@@ -321,11 +321,10 @@ def load_config() -> GlanceConfig:
     Raises:
         ValueError: If any required configuration field is missing or invalid.
     """
+    # Load .env file if exists (optional - does not require .env to exist)
     env_path = Path(".env")
     if env_path.exists():
         load_dotenv(dotenv_path=env_path)
-    else:
-        load_dotenv()
 
     try:
         config = GlanceConfig()
@@ -338,15 +337,14 @@ def load_config() -> GlanceConfig:
         if missing_fields:
             raise ValueError(
                 f"Missing required configuration: {', '.join(missing_fields)}. "
-                f"Set these as environment variables or in a .env file."
+                f"Set these as environment variables."
             ) from exc
         raise ValueError(f"Configuration validation failed: {exc}") from exc
 
     llm_config = config.get_llm_config()
     if not llm_config["api_key"]:
-        raise ValueError(
-            f"No API key found for provider '{config.llm_provider.value}'. "
-            f"Set LLM_API_KEY or {config.llm_provider.value.upper()}_API_KEY."
-        )
+        # Don't fail - allow users to set api_key via environment variable at runtime
+        # The error will be thrown when actually calling the LLM
+        pass
 
     return config
