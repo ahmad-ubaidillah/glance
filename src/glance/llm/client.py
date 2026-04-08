@@ -143,7 +143,7 @@ class OpenAIClient(BaseLLMClient):
         max_tokens: int = 4096,
         **kwargs: Any,
     ) -> LLMResponse:
-        """Send chat completion request."""
+        """Send chat completion request with retry on rate limit."""
         model = model or self.default_model
 
         payload = {
@@ -154,20 +154,41 @@ class OpenAIClient(BaseLLMClient):
             **kwargs,
         }
 
-        response = await self.client.post(
-            "/chat/completions",
-            json=payload,
-        )
-        response.raise_for_status()
-        data = response.json()
+        max_retries = 3
+        retry_delay = 2
 
-        return LLMResponse(
-            content=data["choices"][0]["message"]["content"],
-            model=model,
-            provider=LLMProvider.OPENAI,
-            usage=data.get("usage"),
-            raw_response=data,
-        )
+        for attempt in range(max_retries):
+            try:
+                response = await self.client.post(
+                    "/chat/completions",
+                    json=payload,
+                )
+
+                if response.status_code == 429:
+                    if attempt < max_retries - 1:
+                        import asyncio
+
+                        await asyncio.sleep(retry_delay * (attempt + 1))
+                        continue
+                    response.raise_for_status()
+
+                response.raise_for_status()
+                data = response.json()
+
+                return LLMResponse(
+                    content=data["choices"][0]["message"]["content"],
+                    model=model,
+                    provider=LLMProvider.OPENAI,
+                    usage=data.get("usage"),
+                    raw_response=data,
+                )
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429 and attempt < max_retries - 1:
+                    import asyncio
+
+                    await asyncio.sleep(retry_delay * (attempt + 1))
+                    continue
+                raise
 
     async def chat_streaming(
         self,

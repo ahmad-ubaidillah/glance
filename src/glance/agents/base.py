@@ -327,19 +327,31 @@ class BaseAgent(ABC):
             max_input = self.config.max_context_tokens - self.config.max_tokens
             user_prompt = TokenTracker.truncate_for_context(user_prompt, max_input, is_code=True)
 
-        try:
-            # Make the API call using LLMClientAdapter interface
-            # client.chat.completions.create() -> CompletionsAdapter.create()
-            response = await self.client.chat.completions.create(
-                model=self.config.llm_model,
-                messages=[
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens,
-            )
-            # Handle both dict response (from adapter) and object response
+        max_retries = 3
+        retry_delay = 2
+
+        for attempt in range(max_retries):
+            try:
+                response = await self.client.chat.completions.create(
+                    model=self.config.llm_model,
+                    messages=[
+                        {"role": "system", "content": self.system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=self.config.temperature,
+                    max_tokens=self.config.max_tokens,
+                )
+                break
+            except Exception as e:
+                error_str = str(e)
+                if "429" in error_str and attempt < max_retries - 1:
+                    import asyncio
+                    logger.warning(f"{self.agent_name}: Rate limited, retrying in {retry_delay * (attempt + 1)}s...")
+                    await asyncio.sleep(retry_delay * (attempt + 1))
+                    continue
+                raise
+
+        # Handle both dict response (from adapter) and object response
             if isinstance(response, dict):
                 content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
             else:
