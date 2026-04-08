@@ -491,7 +491,7 @@ class BaseAgent(ABC):
         """
         cleaned = content.strip()
 
-        # Strip markdown code blocks
+        # Try to extract JSON from markdown code blocks
         if cleaned.startswith("```json"):
             cleaned = cleaned.removeprefix("```json").strip()
         elif cleaned.startswith("```"):
@@ -500,10 +500,9 @@ class BaseAgent(ABC):
         if cleaned.endswith("```"):
             cleaned = cleaned.removesuffix("```").strip()
 
+        # Try direct JSON parse first
         try:
             data = json.loads(cleaned)
-
-            # Convert findings and add to review
             findings = []
             for item in data.get("findings", []):
                 findings.append(Finding(**item))
@@ -515,19 +514,48 @@ class BaseAgent(ABC):
                 tokens_used=tokens,
                 cached=cached,
             )
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(
-                "%s: Failed to parse LLM response as JSON: %s",
-                self.agent_name,
-                str(e),
-            )
-            return AgentReview(
-                findings=[],
-                summary=f"Failed to parse response: {cleaned[:200]}",
-                verdict="concerns",
-                tokens_used=tokens,
-                cached=cached,
-            )
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # If JSON failed, try to extract from markdown
+        # Look for verdict keyword
+        verdict = "concerns"
+        summary = ""
+
+        content_lower = cleaned.lower()
+
+        # Extract verdict
+        if "verdict: critical" in content_lower or "verdict: **critical**" in content_lower:
+            verdict = "critical"
+        elif "verdict: pass" in content_lower or "verdict: **pass**" in content_lower:
+            verdict = "pass"
+
+        # Extract summary - take first few paragraphs
+        lines = cleaned.split("\n")
+        summary_lines = []
+        in_summary = False
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            # Skip headers
+            if line.startswith("#") or line.startswith("##"):
+                continue
+            # If line looks like a summary, capture it
+            if len(line) > 20 and not line.startswith("-"):
+                summary_lines.append(line)
+                if len(summary_lines) >= 3:
+                    break
+
+        summary = " ".join(summary_lines) if summary_lines else cleaned[:200]
+
+        return AgentReview(
+            findings=[],
+            summary=summary,
+            verdict=verdict,
+            tokens_used=tokens,
+            cached=cached,
+        )
 
     async def _parse_response_with_retry(
         self,
