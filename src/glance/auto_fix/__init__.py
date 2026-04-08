@@ -134,7 +134,7 @@ Return ONLY valid JSON. No markdown, no explanation."""
         """Parse LLM response into suggested changes."""
         fixes = []
         try:
-            cleaned = content.strip()
+            cleaned = response.strip()
             if cleaned.startswith("```json"):
                 cleaned = cleaned.removeprefix("```json").strip()
             elif cleaned.startswith("```"):
