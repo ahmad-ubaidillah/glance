@@ -104,6 +104,15 @@ Return your findings as a JSON object with this exact schema:
 }
 ```
 
+CRITICAL: Use EXACTLY these field names:
+- file_path (not path, not file, not filename)
+- line_number as a NUMBER, not string (e.g. 42, not "42")
+- severity (not type, not level)
+- category (not kind)
+- message (not description)
+- suggestion (optional)
+- code_snippet (optional)
+
 ## SEVERITY GUIDELINES
 
 - **critical**: Violations that will cause maintenance nightmares, tight coupling, \

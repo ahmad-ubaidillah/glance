@@ -75,6 +75,13 @@ OUTPUT FORMAT (JSON):
   "verdict": "pass|concerns|critical"
 }
 
+CRITICAL: Use EXACTLY these field names:
+- file_path (not path, not filename)
+- line_number as a NUMBER (e.g. 42, not "42")
+- severity (not type)
+- category (not kind)
+- message (not description)
+
 IMPORTANT RULES:
 1. If WhiteHat found critical security issues, verdict MUST be "critical"
 2. If any agent found critical bugs, verdict should be "concerns" at minimum

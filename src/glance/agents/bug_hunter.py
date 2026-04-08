@@ -70,6 +70,13 @@ OUTPUT FORMAT (JSON):
   "verdict": "pass|concerns|critical"
 }
 
+CRITICAL: Use EXACTLY these field names:
+- file_path (not path, not filename)
+- line_number as a NUMBER (e.g. 42, not "42")
+- severity (not type)
+- category (not kind)
+- message (not description)
+
 SEVERITY LEVELS:
 - critical: Definite bug that will cause failures or data corruption
 - warning: Likely bug or missing error handling that could cause issues

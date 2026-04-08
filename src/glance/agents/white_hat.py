@@ -73,6 +73,15 @@ OUTPUT FORMAT (JSON):
   "verdict": "pass|concerns|critical"
 }
 
+CRITICAL: Use EXACTLY these field names:
+- file_path (not path, not file, not filename)
+- line_number (not line, not lineNumber, not lines)
+- severity (not type, not level)
+- category (not kind, not security_category)
+- message (not description, not finding)
+- suggestion (optional)
+- code_snippet (optional)
+
 SEVERITY LEVELS:
 - critical: Exploitable vulnerability that could lead to breach or data leak
 - warning: Security weakness that could be exploited
