@@ -329,6 +329,7 @@ class BaseAgent(ABC):
 
         max_retries = 3
         retry_delay = 2
+        response = None
 
         for attempt in range(max_retries):
             try:
@@ -346,12 +347,22 @@ class BaseAgent(ABC):
                 error_str = str(e)
                 if "429" in error_str and attempt < max_retries - 1:
                     import asyncio
-                    logger.warning(f"{self.agent_name}: Rate limited, retrying in {retry_delay * (attempt + 1)}s...")
+
+                    logger.warning(
+                        f"{self.agent_name}: Rate limited, retrying in {retry_delay * (attempt + 1)}s..."
+                    )
                     await asyncio.sleep(retry_delay * (attempt + 1))
                     continue
                 raise
 
-        # Handle both dict response (from adapter) and object response
+        if response is None:
+            return (
+                '{"findings": [], "summary": "No response from LLM", "verdict": "concerns"}',
+                False,
+                0,
+            )
+
+        try:
             if isinstance(response, dict):
                 content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
             else:
@@ -365,28 +376,21 @@ class BaseAgent(ABC):
                     input_tokens,
                 )
 
-            # Cache the response
             if use_cache and self._cache:
                 prompt_hash = PromptCache.hash_prompt(user_prompt)
                 self._cache.set(prompt_hash, content)
 
-            # Estimate output tokens
             output_tokens = TokenTracker.estimate_tokens(content, is_code=False)
             total_tokens = input_tokens + output_tokens
 
             return content, False, total_tokens
-
         except Exception as e:
             error_str = str(e)
             if "429" in error_str:
                 logger.error("%s: Rate limit exceeded: %s", self.agent_name, str(e))
                 return (
                     json.dumps(
-                        {
-                            "findings": [],
-                            "summary": f"Rate limit exceeded: {e}",
-                            "verdict": "concerns",
-                        }
+                        {"findings": [], "summary": f"Rate limit: {e}", "verdict": "concerns"}
                     ),
                     False,
                     0,
@@ -394,13 +398,7 @@ class BaseAgent(ABC):
             elif "timeout" in error_str.lower():
                 logger.error("%s: Request timed out: %s", self.agent_name, str(e))
                 return (
-                    json.dumps(
-                        {
-                            "findings": [],
-                            "summary": f"Request timed out: {e}",
-                            "verdict": "concerns",
-                        }
-                    ),
+                    json.dumps({"findings": [], "summary": f"Timeout: {e}", "verdict": "concerns"}),
                     False,
                     0,
                 )
@@ -408,11 +406,7 @@ class BaseAgent(ABC):
                 logger.error("%s: API error: %s", self.agent_name, str(e))
                 return (
                     json.dumps(
-                        {
-                            "findings": [],
-                            "summary": f"API error: {e}",
-                            "verdict": "concerns",
-                        }
+                        {"findings": [], "summary": f"API error: {e}", "verdict": "concerns"}
                     ),
                     False,
                     0,
