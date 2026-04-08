@@ -93,7 +93,7 @@ class GlanceConfig(BaseSettings):
     # -- GitHub/GitLab Configuration ---------------------------------------------
     github_token: str = Field(
         "",
-        alias="GITHUB_TOKEN",
+        alias="GIT_TOKEN",
         description="Git provider token (GitHub PAT, GitLab token) with repo write scope.",
     )
     github_repository: str = Field(
