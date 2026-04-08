@@ -564,28 +564,57 @@ class BaseAgent(ABC):
         cached: bool = False,
         tokens: int = 0,
     ) -> AgentReview:
-        """Parse LLM response with one retry on JSON failure.
+        """Parse LLM response with robust retry on JSON failure.
 
-        If the initial response is malformed JSON, retry once with a
-        correction prompt asking for valid JSON output.
+        Tries up to 2 retries with stronger JSON enforcement prompts.
         """
         result = self._parse_response(content, cached, tokens)
-        if result.findings or result.verdict == "pass" or "Failed to parse" not in result.summary:
+
+        # If parsing succeeded with findings or valid verdict, return
+        if result.findings or "Failed to parse" not in result.summary:
             return result
 
-        logger.info("%s: Retrying with JSON correction prompt", self.agent_name)
+        # First retry with JSON correction
+        logger.info("%s: First retry - enforcing JSON output", self.agent_name)
         retry_prompt = (
-            "Your previous response was not valid JSON. "
-            "Return your findings as a valid JSON object with this exact schema:\n"
-            '{"findings": [], "summary": "", "verdict": "pass|concerns|critical"}\n'
-            "Do not include any text outside the JSON."
+            "Your previous response was not valid JSON format. "
+            "CRITICAL: You MUST output ONLY valid JSON, no markdown, no explanation. "
+            "Output this exact schema:\n"
+            '{"findings": [{"file_path": "string", "line_number": 1, "severity": "warning", "category": "string", "message": "string"}], "summary": "string", "verdict": "pass|concerns|critical"}\n'
+            "Return ONLY the JSON, no text before or after."
         )
+
         try:
-            retry_content, _, retry_tokens = await self._call_llm(retry_prompt, use_cache=False)
-            return self._parse_response(retry_content, False, retry_tokens)
+            retry_content, _, retry_tokens = await self._call_llm(
+                user_prompt + "\n\n" + retry_prompt, use_cache=False
+            )
+            result = self._parse_response(retry_content, False, retry_tokens)
+            if result.findings or "Failed to parse" not in result.summary:
+                return result
         except Exception as e:
-            logger.warning("%s: JSON retry failed: %s", self.agent_name, e)
-            return result
+            logger.warning("%s: First retry failed: %s", self.agent_name, e)
+
+        # Second retry with stronger enforcement
+        logger.info("%s: Second retry - stricter JSON enforcement", self.agent_name)
+        retry_prompt_2 = (
+            "IMPORTANT: Previous responses were not proper JSON. "
+            "You MUST follow these rules STRICTLY:\n"
+            "1. Output ONLY valid JSON - no markdown code blocks\n"
+            "2. Start with { and end with }\n"
+            "3. Use exactly these keys: findings, summary, verdict\n"
+            'Example: {"findings":[],"summary":"ok","verdict":"pass"}\n'
+            "Do not add any explanation, headers, or markdown."
+        )
+
+        try:
+            retry_content_2, _, retry_tokens_2 = await self._call_llm(
+                user_prompt + "\n\n" + retry_prompt_2, use_cache=False
+            )
+            result = self._parse_response(retry_content_2, False, retry_tokens_2)
+        except Exception as e:
+            logger.warning("%s: Second retry failed: %s", self.agent_name, e)
+
+        return result
 
     def _error_review(self, error_message: str) -> AgentReview:
         """Create a degraded AgentReview when an error occurs."""
