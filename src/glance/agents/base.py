@@ -376,35 +376,37 @@ class BaseAgent(ABC):
 
             return content, False, total_tokens
 
-        except RateLimitError as e:
-            logger.error("%s: Rate limit exceeded: %s", self.agent_name, str(e))
-            return (
-                json.dumps(
-                    {
-                        "findings": [],
-                        "summary": f"Rate limit exceeded: {e}",
-                        "verdict": "concerns",
-                    }
-                ),
-                False,
+        except Exception as e:
+            error_str = str(e)
+            if "429" in error_str:
+                logger.error("%s: Rate limit exceeded: %s", self.agent_name, str(e))
+                return (
+                    json.dumps(
+                        {
+                            "findings": [],
+                            "summary": f"Rate limit exceeded: {e}",
+                            "verdict": "concerns",
+                        }
+                    ),
+                    False,
                 0,
             )
 
-        except APITimeoutError as e:
-            logger.error("%s: Request timed out: %s", self.agent_name, str(e))
-            return (
-                json.dumps(
-                    {
-                        "findings": [],
-                        "summary": f"Request timed out: {e}",
-                        "verdict": "concerns",
-                    }
-                ),
-                False,
-                0,
-            )
-
-        except APIError as e:
+        except Exception as e:
+            error_str = str(e)
+            if "timeout" in error_str.lower():
+                logger.error("%s: Request timed out: %s", self.agent_name, str(e))
+                return (
+                    json.dumps(
+                        {
+                            "findings": [],
+                            "summary": f"Request timed out: {e}",
+                            "verdict": "concerns",
+                        }
+                    ),
+                    False,
+                    0,
+                )
             logger.error("%s: API error: %s", self.agent_name, str(e))
             return (
                 json.dumps(
