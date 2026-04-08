@@ -226,6 +226,36 @@ class ConflictDetector:
                 result.append(parsed)
         return result
 
+    def scan_diff(self, diff_content: str) -> list[ConflictFile]:
+        """Scan a diff string for merge conflict markers.
+
+        Args:
+            diff_content: Git diff content.
+
+        Returns:
+            List of ConflictFile with detected conflicts.
+        """
+        conflicts = []
+        lines = diff_content.split("\n")
+
+        current_file = None
+        for line in lines:
+            if line.startswith("+++ b/"):
+                current_file = line[6:].strip()
+                continue
+
+            if not line.startswith("+"):
+                continue
+
+            actual_line = line[1:]
+
+            if self.CONFLICT_START in actual_line:
+                existing = next((c for c in conflicts if c.path == current_file), None)
+                if not existing and current_file:
+                    conflicts.append(ConflictFile(path=current_file, conflicts=[]))
+
+        return conflicts
+
 
 def detect_conflicts(repo_root: Path | str = ".") -> list[ConflictFile]:
     detector = ConflictDetector(repo_root)
