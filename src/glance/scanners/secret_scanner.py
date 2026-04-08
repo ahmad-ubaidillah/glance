@@ -55,9 +55,7 @@ class SecretScanner:
             re.IGNORECASE,
         ),
         # GitHub Token
-        "github_token": re.compile(
-            r"(?:ghp_|gho_|ghu_|ghs_|ghr_)[a-zA-Z0-9_]{36,}"
-        ),
+        "github_token": re.compile(r"(?:ghp_|gho_|ghu_|ghs_|ghr_)[a-zA-Z0-9_]{36,}"),
         # Generic API Key patterns
         "api_key": re.compile(
             r"(?:api[_-]?key|apikey)\s*[=:]\s*['\"]?[a-zA-Z0-9_\-]{20,}['\"]?",
@@ -74,9 +72,7 @@ class SecretScanner:
             re.IGNORECASE,
         ),
         # JWT Token
-        "jwt_token": re.compile(
-            r"eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*"
-        ),
+        "jwt_token": re.compile(r"eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*"),
         # Private Key header
         "private_key": re.compile(
             r"-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----",
@@ -93,16 +89,11 @@ class SecretScanner:
             re.IGNORECASE,
         ),
         # Slack Token
-        "slack_token": re.compile(
-            r"xox[baprs]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24}"
-        ),
+        "slack_token": re.compile(r"xox[baprs]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24}"),
         # Google API Key
-        "google_api_key": re.compile(
-            r"AIza[0-9A-Za-z\-_]{35}"
-        ),
+        "google_api_key": re.compile(r"AIza[0-9A-Za-z\-_]{35}"),
     }
 
-    # Patterns that are likely false positives
     FALSE_POSITIVE_PATTERNS: list[Pattern] = [
         re.compile(r"^\$\{"),  # Environment variable placeholders
         re.compile(r"^process\.env\."),  # Node.js env references
@@ -112,6 +103,9 @@ class SecretScanner:
         re.compile(r"^\*\*"),  # Wildcards
         re.compile(r"^your[_-]?(?:api[_-]?key|password|secret)", re.IGNORECASE),  # Examples
         re.compile(r"^<[^>]+>$"),  # Placeholder markers
+        re.compile(r"request\.headers"),  # Flask/Django request headers
+        re.compile(r"getenv|os\.environ"),
+        re.compile(r"Authorization|Bearer|API-Key", re.IGNORECASE),
     ]
 
     def __init__(self, min_entropy: float = 3.5):
@@ -161,12 +155,14 @@ class SecretScanner:
             if stripped.startswith("#") or stripped.startswith("//"):
                 # But still scan for private keys in comments
                 if "-----BEGIN" in line:
-                    findings.append(SecretFinding(
-                        file_path=file_path,
-                        line_number=line_num,
-                        secret_type="private_key",
-                        matched_text=line[:50] + "...",
-                    ))
+                    findings.append(
+                        SecretFinding(
+                            file_path=file_path,
+                            line_number=line_num,
+                            secret_type="private_key",
+                            matched_text=line[:50] + "...",
+                        )
+                    )
                 continue
 
             # Check each pattern
@@ -182,13 +178,15 @@ class SecretScanner:
                     # Calculate entropy for validation
                     entropy = self._calculate_entropy(matched_text)
 
-                    findings.append(SecretFinding(
-                        file_path=file_path,
-                        line_number=line_num,
-                        secret_type=secret_type,
-                        matched_text=self._mask_secret(matched_text),
-                        entropy_score=entropy,
-                    ))
+                    findings.append(
+                        SecretFinding(
+                            file_path=file_path,
+                            line_number=line_num,
+                            secret_type=secret_type,
+                            matched_text=self._mask_secret(matched_text),
+                            entropy_score=entropy,
+                        )
+                    )
 
         return SecretScanResult(
             has_secrets=len(findings) > 0,
@@ -235,13 +233,15 @@ class SecretScanner:
 
                     entropy = self._calculate_entropy(matched_text)
 
-                    findings.append(SecretFinding(
-                        file_path=current_file,
-                        line_number=line_num,
-                        secret_type=secret_type,
-                        matched_text=self._mask_secret(matched_text),
-                        entropy_score=entropy,
-                    ))
+                    findings.append(
+                        SecretFinding(
+                            file_path=current_file,
+                            line_number=line_num,
+                            secret_type=secret_type,
+                            matched_text=self._mask_secret(matched_text),
+                            entropy_score=entropy,
+                        )
+                    )
 
         return SecretScanResult(
             has_secrets=len(findings) > 0,
@@ -256,10 +256,16 @@ class SecretScanner:
 
         # Check if it's a placeholder pattern
         placeholders = [
-            "xxx", "yyy", "zzz",
-            "your_", "my_", "example",
-            "placeholder", "template",
-            "changeme", "insert_here",
+            "xxx",
+            "yyy",
+            "zzz",
+            "your_",
+            "my_",
+            "example",
+            "placeholder",
+            "template",
+            "changeme",
+            "insert_here",
         ]
         matched_lower = matched_text.lower()
         for placeholder in placeholders:
