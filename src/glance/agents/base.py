@@ -152,11 +152,15 @@ class PromptCache:
 class Finding(BaseModel):
     """Represents a single code review finding."""
 
-    file_path: str = Field(description="Path to the file containing the issue")
+    file_path: str | None = Field(default=None, description="Path to the file containing the issue")
     line_number: int | None = Field(default=None, description="Line number where the issue occurs")
-    severity: str = Field(description="Severity level: 'info', 'warning', or 'critical'")
-    category: str = Field(description="Category of the finding, e.g. 'solid', 'security', 'bug'")
-    message: str = Field(description="Description of the issue found")
+    severity: str = Field(
+        default="warning", description="Severity level: 'info', 'warning', or 'critical'"
+    )
+    category: str | None = Field(
+        default=None, description="Category of the finding, e.g. 'solid', 'security', 'bug'"
+    )
+    message: str | None = Field(default=None, description="Description of the issue found")
     suggestion: str | None = Field(default=None, description="Suggested fix or improvement")
     code_snippet: str | None = Field(
         default=None, description="Relevant code snippet showing the issue"
@@ -164,6 +168,29 @@ class Finding(BaseModel):
     auto_fix: str | None = Field(
         default=None, description="Suggested code change for auto-fix feature"
     )
+    # Accept alternate field names
+    type: str | None = Field(default=None, alias="type")
+    description: str | None = Field(default=None, alias="description")
+    path: str | None = Field(default=None, alias="path")
+    line: int | None = Field(default=None, alias="line")
+    lines: list[int] | None = Field(default=None, alias="lines")
+
+    model_config = {"populate_by_name": True}
+
+    def __init__(self, **data):
+        # Handle alternate field mappings
+        if "path" in data and "file_path" not in data:
+            data["file_path"] = data.pop("path")
+        if "line" in data and "line_number" not in data:
+            data["line_number"] = data.pop("line")
+        if "lines" in data and "line_number" not in data:
+            lines = data.pop("lines")
+            data["line_number"] = lines[0] if lines else None
+        if "type" in data and "category" not in data:
+            data["category"] = data.pop("type")
+        if "description" in data and "message" not in data:
+            data["message"] = data.pop("description")
+        super().__init__(**data)
 
 
 class AgentReview(BaseModel):
