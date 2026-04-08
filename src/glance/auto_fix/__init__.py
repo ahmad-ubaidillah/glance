@@ -134,10 +134,10 @@ Return ONLY valid JSON. No markdown, no explanation."""
         """Parse LLM response into suggested changes."""
         fixes = []
         try:
-            cleaned = response.strip()
+            cleaned = content.strip()
             if cleaned.startswith("```json"):
-                cleaned = cleaned[7:]
-            if cleaned.startswith("```"):
+                cleaned = cleaned.removeprefix("```json").strip()
+            elif cleaned.startswith("```"):
                 cleaned = cleaned[3:]
             if cleaned.endswith("```"):
                 cleaned = cleaned[:-3]
@@ -156,7 +156,61 @@ Return ONLY valid JSON. No markdown, no explanation."""
                     )
                 )
         except (json.JSONDecodeError, KeyError, TypeError) as e:
-            logger.warning(f"Failed to parse fixes: {e}")
+            # Try fallback: extract from markdown if JSON fails
+            fixes = self._parse_fixes_from_markdown(content)
+            if not fixes:
+                logger.warning(f"Failed to parse fixes: {e}")
+        return fixes
+
+    def _parse_fixes_from_markdown(self, content: str) -> list[SuggestedChange]:
+        """Parse fixes from markdown when JSON fails."""
+        fixes = []
+        lines = content.split("\n")
+        current_file = None
+        current_fix = None
+        original_lines = []
+        fixed_lines = []
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Detect file path
+            if line.startswith("File:") or line.startswith("**File:"):
+                if current_fix and (original_lines or fixed_lines):
+                    current_fix.original_code = "\n".join(original_lines)
+                    current_fix.fixed_code = "\n".join(fixed_lines)
+                    fixes.append(current_fix)
+                current_file = line.split(":", 1)[-1].strip().strip("*")
+                current_fix = None
+                original_lines = []
+                fixed_lines = []
+                continue
+
+            # Detect original code (before)
+            if "before" in line.lower() or "original" in line.lower():
+                original_lines = []
+                continue
+
+            # Detect fixed code (after)
+            if "after" in line.lower() or "fixed" in line.lower():
+                fixed_lines = []
+                continue
+
+            # Collect code lines
+            if line.startswith("+") or line.startswith("-") or line.startswith(" "):
+                if "original" in str(current_fix) if current_fix else False:
+                    original_lines.append(line)
+                else:
+                    fixed_lines.append(line)
+
+        # Add last fix
+        if current_fix and (original_lines or fixed_lines):
+            current_fix.original_code = "\n".join(original_lines)
+            current_fix.fixed_code = "\n".join(fixed_lines)
+            fixes.append(current_fix)
+
         return fixes
 
     def format_github_suggestion(self, fix: SuggestedChange) -> str:

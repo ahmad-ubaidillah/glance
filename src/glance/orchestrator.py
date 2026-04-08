@@ -768,7 +768,7 @@ class GRReviewOrchestrator:
                     continue
 
                 for finding in findings:
-                    if finding.line_number:
+                    if finding.line_number and finding.file_path:
                         try:
                             body = self._format_inline_comment(finding)
                             logger.info(
@@ -785,9 +785,15 @@ class GRReviewOrchestrator:
                                 f"Posted inline comment on {file_path}:{finding.line_number}"
                             )
                         except Exception as e:
-                            logger.error(
-                                f"Failed to post inline comment on {file_path}:{finding.line_number}: {e}"
-                            )
+                            error_str = str(e)
+                            if "422" in error_str or "could not be resolved" in error_str:
+                                logger.debug(
+                                    f"Skipped comment on {file_path}:{finding.line_number} - line not in PR"
+                                )
+                            else:
+                                logger.error(
+                                    f"Failed to post inline comment on {file_path}:{finding.line_number}: {e}"
+                                )
                     else:
                         logger.debug(f"Skipping finding without line_number: {file_path}")
 
