@@ -394,20 +394,20 @@ class GRReviewOrchestrator:
                 input_tokens = int(total_tokens * 0.7)
                 output_tokens = total_tokens - input_tokens
 
-                cost_tracker.add_review(
-                    TokenUsage(
-                        review_id=f"pr-{pr.number}-{pr.head.sha[:8]}",
-                        provider=self.config.llm_provider.value
-                        if hasattr(self.config.llm_provider, "value")
-                        else self.config.llm_provider,
-                        model=self.config.llm_model,
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                        total_tokens=total_tokens,
-                        timestamp=datetime.now().isoformat(),
-                        duration_seconds=0.0,
-                    )
+                usage = TokenUsage(
+                    review_id=f"pr-{pr.number}-{pr.head.sha[:8]}",
+                    provider=self.config.llm_provider.value
+                    if hasattr(self.config.llm_provider, "value")
+                    else self.config.llm_provider,
+                    model=self.config.llm_model,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens,
+                    timestamp=datetime.now().isoformat(),
+                    duration_seconds=0.0,
                 )
+                usage.calculate_cost()
+                cost_tracker.add_review(usage)
                 save_cost_tracker(repo_root, cost_tracker)
                 logger.info(cost_tracker.get_summary())
             except Exception as e:
