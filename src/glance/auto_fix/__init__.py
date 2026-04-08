@@ -156,8 +156,7 @@ Return ONLY valid JSON. No markdown, no explanation."""
                     )
                 )
         except (json.JSONDecodeError, KeyError, TypeError) as e:
-            # Try fallback: extract from markdown if JSON fails
-            fixes = self._parse_fixes_from_markdown(content)
+            fixes = self._parse_fixes_from_markdown(response)
             if not fixes:
                 logger.warning(f"Failed to parse fixes: {e}")
         return fixes
