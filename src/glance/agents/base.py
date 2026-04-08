@@ -389,12 +389,9 @@ class BaseAgent(ABC):
                         }
                     ),
                     False,
-                0,
-            )
-
-        except Exception as e:
-            error_str = str(e)
-            if "timeout" in error_str.lower():
+                    0,
+                )
+            elif "timeout" in error_str.lower():
                 logger.error("%s: Request timed out: %s", self.agent_name, str(e))
                 return (
                     json.dumps(
@@ -407,21 +404,19 @@ class BaseAgent(ABC):
                     False,
                     0,
                 )
-            logger.error("%s: API error: %s", self.agent_name, str(e))
-            return (
-                json.dumps(
-                    {
-                        "findings": [],
-                        "summary": f"API error: {e}",
-                        "verdict": "concerns",
-                    }
-                ),
-                False,
-                0,
-            )
-
-        except Exception as e:
-            logger.error("%s: Unexpected error: %s", self.agent_name, str(e))
+            else:
+                logger.error("%s: API error: %s", self.agent_name, str(e))
+                return (
+                    json.dumps(
+                        {
+                            "findings": [],
+                            "summary": f"API error: {e}",
+                            "verdict": "concerns",
+                        }
+                    ),
+                    False,
+                    0,
+                )
             return (
                 json.dumps(
                     {
